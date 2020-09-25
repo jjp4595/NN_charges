@@ -1,20 +1,27 @@
 import numpy as np
 import pandas as pd
 import os
+import pickle
 
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
+from keras.wrappers.scikit_learn import KerasRegressor
 from keras.optimizers import RMSprop, Adadelta, Adagrad, Adam, Nadam, SGD
 from keras.callbacks import EarlyStopping, TerminateOnNaN
 from keras import backend as K
-from keras.losses import mean_squared_error
+from keras.losses import mean_squared_error, mean_absolute_error
 from keras.regularizers import l2
 
+from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler, PowerTransformer
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold
 from sklearn.metrics import r2_score
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
+from matplotlib import colors
+
 
 def JP_lowZ(Z,theta):#scaled impulse
     return (0.383*(Z**-1.858)) * np.exp((-theta**2)/1829)
@@ -27,7 +34,6 @@ def JP_highZ(Z,theta):#scaled impulse
 #function to compute the room_mean_squared_error given the ground truth (y_true) and the predictions(y_pred)
 def root_mean_squared_error(y_true, y_pred):
         return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1)) 
-
 
 
 def phy_loss_mean(params):
@@ -54,35 +60,21 @@ def combined_loss(params):
     return loss
 
 
-def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lamda3, scaling_input, remove_first, remove_last):
-        
-    # Hyper-parameters of the training process
-    batch_size = 32
-    num_epochs = 200
-    val_frac = 0.1
-    patience_val = int(0.25*num_epochs)
-    
-    # # Initializing results filename
-    # exp_name = optimizer_name + '_drop' + str(drop_frac) + '_usePhy' + str(use_YPhy) + '_lamda' + str(lamda)
-    # exp_name = exp_name.replace('.','pt')
-    # results_dir = '../results/'
-    # model_name = results_dir + exp_name + '_model.h5' # storing the trained model
-    # results_name = results_dir + exp_name + '_results.mat' # storing the results of the model
-    
-    # Load features (Xc) and target values (Y)
-     
-    filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical.csv"
+
+
+
+
+def load_data(scaling_input, remove_last, remove_first, test_frac):
+    # Load features (Xc) and target values (Y) 
+    filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
     data= data.values
     
     # split into input (X) and output (Y) variables
     X = data[:,[2,3]]
-    
     y = data[:,4]/1000/(0.1**(1/3))
     y_og = y.reshape(len(y),1)
-    y = y_og
-    
-    
+    y = y_og       
     
     if scaling_input == 1:
         #Scaling X
@@ -96,12 +88,13 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
         scaler_y = scaler2.fit(y)
         y_scaled = scaler_y.transform(y)
         
-        #scaler_y2 = scaler.fit(y_scaled)
-        #y_scaled = scaler_y2.transform(y_scaled)
+        # scaler_y2 = scaler.fit(y_scaled)
+        # y_scaled = scaler_y2.transform(y_scaled)
     else:
         X_scaled, y_scaled = X, y
         
     X_scaled_og = X_scaled
+    
     
     #Testing extrapolation
     if remove_last != 0:
@@ -115,28 +108,14 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
         pass
 
     #Split data to 90% train & 10% unseen
-    X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=0.005, random_state=32)
- 
+    X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, random_state=32)
     
-    # Creating the model
-    model = Sequential()     
-    
-    for layer in np.arange(n_layers):
-        if layer == 0:
-            model.add(Dense(n_nodes, input_shape=(np.shape(X_scaled)[1],), activation='relu'))
-            model.add(Dropout(0.2))
-        else:
-            model.add(Dense(n_nodes, activation='relu'))
-            model.add(Dropout(drop_frac))
-    model.add(Dense(1, activation='linear'))
-        
-    
+    return X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og
 
-    
-    
+def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
     # Defining data for physics-based regularization, Z Condition
-    zX1 =  X_scaled[0:-200,:]  # X at Z i for every pair of consecutive Z values
-    zX2 =  X_scaled[200::,:]# X at Z i + 1 for every pair of consecutive Z values
+    zX1 =  X_scaled_og[0:-200,:]  # X at Z i for every pair of consecutive Z values
+    zX2 =  X_scaled_og[200::,:]# X at Z i + 1 for every pair of consecutive Z values
     zin1 = K.constant(value=zX1) # input at Z i
     zin2 = K.constant(value=zX2) # input at Z i + 1
     lam = K.constant(value=lamda) # regularization hyper-parameter
@@ -145,8 +124,8 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     zimpdiff = zout2 - zout1 # difference in impulse estimates at every pair of consecutive z values    
     
     # Defining data for physics-based regularization, Z Condition
-    thetaX1 =  X_scaled[np.argsort(X_scaled[:,1])][0:-18,:]  # X at theta i for every pair of consecutive theta values
-    thetaX2 =  X_scaled[np.argsort(X_scaled[:,1])][18::,:]   # X at theta i + 1 for every pair of consecutive theta values
+    thetaX1 =  X_scaled_og[np.argsort(X_scaled_og[:,1])][0:-18,:]  # X at theta i for every pair of consecutive theta values
+    thetaX2 =  X_scaled_og[np.argsort(X_scaled_og[:,1])][18::,:]   # X at theta i + 1 for every pair of consecutive theta values
     thetaval1, thetaval2 = [], []
     inds = 0
     while inds < len(thetaX1): 
@@ -167,19 +146,76 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     
     lam3 = K.constant(value = lamda3)
     thetaimpratio = thetaout1 / thetaout2
-    
 
-        
     totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3])
     phyloss = phy_loss_mean([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3]) #for cross checking
+    return totloss, phyloss
+
+
+
+def NN_train_test():
+    
+    #set lamdas=0 for pgnn0
+    lamda = 0 # Physics-based regularization constant - Z
+    lamda2 = 0  #Physics-based regularization constant - theta monotonic
+    lamda3 = 0 #theta smoothness    
+    
+    # Hyper-parameters of the training process
+    n_layers = 1
+    
+    batch_size = 32
+    num_epochs = 50
+    optimizer_str = 'Adam' 
+    drop_frac = 0
+    n_nodes = 200
+    
+    #Data
+    val_frac = 0.1
+    test_frac = 0.05
+    patience_val = int(0.50*num_epochs)
+
+    #load data
+    scaling_input = 1
+    remove_first = 0
+    remove_last = 0
+    
+    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, remove_last, remove_first, test_frac)
+    
+    # Creating the model
+    model = Sequential()     
+    for layer in np.arange(n_layers):
+        if layer == 0:
+            model.add(Dense(n_nodes, input_shape=(np.shape(X_scaled)[1],), activation='relu'))
+            model.add(Dropout(drop_frac))
+        else:
+            model.add(Dense(n_nodes, activation='relu'))
+            model.add(Dropout(drop_frac))
+    model.add(Dense(1, activation='linear'))    
+    
+    totloss, phyloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
 
     model.compile(loss=totloss,
-                  optimizer=optimizer_val,
+                  optimizer=optimizer_str,
                   metrics=[phyloss, root_mean_squared_error])
 
-    early_stopping = EarlyStopping(monitor='val_loss_1', patience=patience_val,verbose=1)
-    
-    print('Running...' + optimizer_name)
+
+
+    kf = KFold(n_splits=4, shuffle = True)
+    for train_index, test_index in kf.split(X_train, y=y_train):
+        early_stopping = EarlyStopping(monitor='val_loss_1', patience=patience_val,verbose=1)
+        
+        history = model.fit(X_train[train_index], 
+                            y_train[train_index],
+                            batch_size=batch_size,
+                            epochs=num_epochs,
+                            validation_data=(X_train[test_index],
+                                            y_train[test_index]),
+                            callbacks=[early_stopping, TerminateOnNaN()])
+
+
+
+       
+ 
     history = model.fit(X_train, y_train,
                         batch_size=batch_size,
                         epochs=num_epochs,
@@ -189,18 +225,53 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     
     test_score = model.evaluate(X_unseen, y_unseen, verbose=0)
     print('lamda: ' + str(lamda) + ' TestRMSE: ' + str(test_score[2]) + ' PhyLoss: ' + str(test_score[1]))
+        
+    hist_df = pd.DataFrame(history.history)  
+
+    data = {'X_Scaled':X_scaled, 'y_scaled':y_scaled, 'X_train':X_train, 
+            'X_unseen':X_unseen, 'y_train':y_train, 'y_unseen':y_unseen, 
+            'scaler_x':scaler_x, 'scaler2':scaler2, 'scaler_y':scaler_y, 
+            'X_scaled_og':X_scaled_og, 'y_og':y_og}   
     
+    return hist_df, model, data
+
+
+
+
+if __name__ == '__main__':	
     
-    #model.save(model_name)
+      
+    hist, model, data = NN_train_test()
     
-    hist_df = pd.DataFrame(history.history) 
+
+    # Figure for unseen evaluations
+    fig, ax = plt.subplots(1,1, figsize=(3,3))
+    ax.scatter(data['y_unseen'], model.predict(data['X_unseen']), s=7., color='black')
+    text = "$R^2 = {:.3f}$".format(r2_score(data['y_unseen'],model.predict(data['X_unseen'])))
+    ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+    ax.set_ylabel('Predicted response')
+    ax.set_xlabel('Actual response')
+    ax.set_title('Unseen validation data')
+    ax.set_xlim(0,1)
+    ax.set_ylim(0,1)
+    ax.minorticks_on()
+    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+    plt.tight_layout()
+
+
+
+
+
+
+
+
+
+"""
+
+if plotting != 0:
     
-    
-    
-    
-    
-    
-    
+    #Dataset plots 1
     fig, ax = plt.subplots(3, 3, figsize=(8,8))
     fax = ax.ravel()
     for i in range(0,9):
@@ -235,7 +306,7 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
     #fig.savefig("NN1.png")
     
-    
+    #Dataset plots 2
     fig, ax = plt.subplots(3, 3, figsize=(8,8))
     fax = ax.ravel()
     
@@ -271,10 +342,10 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     
     
     #validation against completely unseen data
-    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical_val_highZ.csv"
+    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_highZ.csv"
     val_highZ = pd.read_csv(fn_val_highZ, header = None)
     val_highZ = val_highZ.values
-    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical_val_lowZ.csv"
+    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_lowZ.csv"
     val_lowZ = pd.read_csv(fn_val_lowZ, header = None)
     val_lowZ = val_lowZ.values
     
@@ -316,70 +387,100 @@ def PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lam
     ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
     plt.tight_layout()    
     
-    # fig, ax = plt.subplots(1,1, figsize=(3,3))
-    # ax.scatter(y_unseen, model.predict(X_unseen), s=7., color='black')
-    # text = "$R^2 = {:.3f}$".format(r2_score(y_unseen,model.predict(X_unseen)))
-    # ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
-    # ax.set_ylabel('Predicted response')
-    # ax.set_xlabel('Actual response')
-    # ax.set_title('Unseen validation data')
-    # ax.set_xlim(0,1)
-    # ax.set_ylim(0,1)
-    # ax.minorticks_on()
-    # ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    # ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    # plt.tight_layout()
-       
-    
-    
-    return hist_df, model
-
-
-if __name__ == '__main__':
-	# Main Function
-	
-	# List of optimizers to choose from    
-    optimizer_names = ['Adagrad', 'Adadelta', 'Adam', 'Nadam', 'RMSprop', 'SGD', 'NSGD']
-    optimizer_vals = [Adagrad(), Adadelta(), Adam(), Nadam(), RMSprop(), SGD(), SGD()]
-    
-    # selecting the optimizer
-    optimizer_num = 2 #Adam
-    optimizer_name = optimizer_names[optimizer_num]
-    optimizer_val = optimizer_vals[optimizer_num]
-    
-    
-    #Input data
-    scaling_input = 1 # 1 to scale
-    
-    #remove n samples?
-    remove_first = 4
-    remove_last = 4
-    
-    
-    #Hyperparameters
-    n_layers = 2 # Number of hidden layers
-    n_nodes = 100 # Number of nodes per hidden layer
-    drop_frac = 0.5 # Fraction of nodes to be dropped out
-    
-    #set lamdas=0 for pgnn0
-    lamda = np.linspace(0,2,4) # Physics-based regularization constant - Z
-    lamda2 = np.linspace(0,2,4)  #Physics-based regularization constant - theta monotonic
-    lamda3 = 0 #theta smoothness
-
-    #results, model = PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda, lamda2, lamda3, scaling_input, remove_first, remove_last)
-    all_results, all_models = [], []
-    for i in range(len(lamda)):
-        for j in range(len(lamda2)):
+    #peak I vs Z
+    fig, ax = plt.subplots(2, 3, figsize=(8,6))
+    fax = ax.ravel()
+    angles = [0, 20, 30, 40, 60, 80]
+    for i in range(len(angles)):
+        n = 50 #resolution of predictions
+        sampleZ = np.linspace(0, 1, n).reshape(n,1)
+        if angles[i] == 0:
+            idtheta = 0
             
-            results, model = PGNN_train_test(optimizer_name, optimizer_val, drop_frac, lamda[i], lamda2[j], lamda3, scaling_input, remove_first, remove_last)
-            all_results.append(results)
-            all_models.append(model)
+        elif angles[i] == 80:
+            idtheta = 199
+        else:
+            idtheta = np.where(np.linspace(0,80,200) > angles[i])[0][0]
+        sampleZ = np.concatenate((sampleZ, np.zeros((n , 1)) + X_scaled_og[idtheta,1]), axis = 1) 
+        
+        fax[i].plot(sampleZ[:,0], 
+                    scaler_y.inverse_transform(model.predict(sampleZ).reshape(len(sampleZ),1)),
+                    'k', label='NN')
+        fax[i].scatter(X_scaled_og[np.where(X[:,1]==X[idtheta,1]),0], y_og[np.where(X[:,1]==X[idtheta,1]),0], marker = 's',facecolors = 'white', edgecolors='k', s = 10., label = 'CFD data')
+        fax[i].minorticks_on()
+        fax[i].grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
+        fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        fax[i].set_title(str(angles[i]) + "degrees")
+        fax[i].set_xlabel("Normalised Z")
+        fax[i].set_ylabel("specific impulse (MPa.ms)")                 
+        plt.tight_layout()
+
+#Exploratory Contour plot
+z = np.linspace(X.min(0)[0], X.max(0)[0], 200)
+theta = np.linspace(0,80,200)
+[z1, theta1] = np.meshgrid(z,theta)
+z = z1.flatten('F')
+z = z.reshape(len(z), 1)
+theta = theta1.flatten('F')
+theta = theta.reshape(len(theta), 1)
+to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
+pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
+pred = pred.reshape(np.shape(z1), order = 'F')
+fig0, ax = plt.subplots(1,1, figsize=(5,5))
+CS = ax.contourf(theta1, z1, pred, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+#ax.clabel(CS, inline=1, fontsize=10)
+cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
+cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+ax.set_xlabel('Angle of incidence (degrees)')
+plt.tight_layout()
 
 
-# #checking theta ratios
-# lol = data[:,4]
-# new = []
-# i = 0
-# while i < len(lol)-1:
-#     new.append(lol[i]/lol[i+1])
-#     i += 1
+#Comparison Contour 
+z = np.linspace(X.min(0)[0], X.max(0)[0], 18)
+theta = np.linspace(0,80,200)
+[z1, theta1] = np.meshgrid(z,theta)
+z = z1.flatten('F')
+z = z.reshape(len(z), 1)
+theta = theta1.flatten('F')
+theta = theta.reshape(len(theta), 1)
+to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
+pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
+pred = pred.reshape(np.shape(z1), order = 'F')
+residuals = pred-y.reshape(np.shape(pred))
+                           
+fig0, ax = plt.subplots(1,1, figsize=(5,5))
+CS = ax.contourf(theta1, z1, residuals, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+#ax.clabel(CS, inline=1, fontsize=10)
+cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
+cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+ax.set_xlabel('Angle of incidence (degrees)')
+plt.tight_layout()
+
+#Histogram of residuals
+fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
+ax.hist(residuals.flatten('F'), bins = 20, density = True)
+ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
+#Histogram of residuals
+fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
+ax.hist(res[0].flatten('F'), bins = 20, density = True)
+ax.hist(res[1].flatten('F'), bins = 20, density = True)
+ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
+"""
+
+
+
+
+
+
+#Pickling functions
+def save_obj(obj, name ):
+    with open('obj/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+#save_obj(lsoa_dist, "lsoa_data")
+def load_obj(name ):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
