@@ -6,7 +6,7 @@ import pickle
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
 from keras.wrappers.scikit_learn import KerasRegressor
-from keras.optimizers import RMSprop, Adadelta, Adagrad, Adam, Nadam, SGD
+from keras.optimizers import RMSprop, Adadelta, Adagrad, Adam, Nadam, SGD, Adamax
 from keras.callbacks import EarlyStopping, TerminateOnNaN
 from keras import backend as K
 from keras.losses import mean_squared_error, mean_absolute_error
@@ -21,6 +21,49 @@ from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from matplotlib import colors
+from matplotlib.lines import Line2D
+
+import multiprocessing
+
+params = {'font.family':'serif',
+        'axes.labelsize':'small',
+        'xtick.labelsize':'x-small',
+        'ytick.labelsize':'x-small', 
+        'axes.linewidth':0.5,
+        
+        'xtick.major.width':0.5,
+        'xtick.minor.width':0.4,
+        'ytick.major.width':0.5,
+        'ytick.minor.width':0.4,
+        'xtick.major.size':3.0,
+        'xtick.minor.size':1.5,
+        'ytick.major.size':3.0,
+        'ytick.minor.size':1.5,
+        
+        'legend.fontsize':'small',
+        'legend.title_fontsize':'small',
+        'legend.fancybox': False,
+        'legend.framealpha': 1,
+        'legend.shadow': False,
+        'legend.frameon': True,
+        'legend.edgecolor':'black',
+        'patch.linewidth':0.5,
+        
+        'scatter.marker': 's',
+        
+        'grid.linewidth':'0.5',
+        
+        'lines.linewidth':'0.5'}
+plt.rcParams.update(params)
+
+
+
+
+
+
+
+
+
 
 
 def JP_lowZ(Z,theta):#scaled impulse
@@ -153,8 +196,8 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test():
-    
+def NN_train_test(epochs, batch, opt_str, learn_rate = None):
+     
     #set lamdas=0 for pgnn0
     lamda = 0 # Physics-based regularization constant - Z
     lamda2 = 0  #Physics-based regularization constant - theta monotonic
@@ -163,16 +206,16 @@ def NN_train_test():
     # Hyper-parameters of the training process
     n_layers = 1
     
-    batch_size = 32
-    num_epochs = 50
-    optimizer_str = 'Adam' 
+    batch_size = batch
+    num_epochs = epochs
+     
     drop_frac = 0
     n_nodes = 200
     
     #Data
-    val_frac = 0.1
-    test_frac = 0.05
-    patience_val = int(0.50*num_epochs)
+    
+    test_frac = 0.10
+    patience_val = int(0.3 * num_epochs)
 
     #load data
     scaling_input = 1
@@ -193,71 +236,156 @@ def NN_train_test():
     model.add(Dense(1, activation='linear'))    
     
     totloss, phyloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
-
+    
     model.compile(loss=totloss,
-                  optimizer=optimizer_str,
+                  optimizer=opt_str,
+                  
                   metrics=[phyloss, root_mean_squared_error])
-
+    
+    if learn_rate != None:
+        K.set_value(model.optimizer.learning_rate,learn_rate)
+    else:
+        pass
 
 
     kf = KFold(n_splits=4, shuffle = True)
+    hist_df, test_scores, datasets = [], [], []
+    early_stopping = EarlyStopping(monitor='val_loss_1', patience=patience_val, verbose=1)
+    
     for train_index, test_index in kf.split(X_train, y=y_train):
-        early_stopping = EarlyStopping(monitor='val_loss_1', patience=patience_val,verbose=1)
+        
         
         history = model.fit(X_train[train_index], 
                             y_train[train_index],
                             batch_size=batch_size,
                             epochs=num_epochs,
+                            verbose = 1,
                             validation_data=(X_train[test_index],
                                             y_train[test_index]),
+                            validation_freq=1,
                             callbacks=[early_stopping, TerminateOnNaN()])
-
-
-
-       
- 
-    history = model.fit(X_train, y_train,
-                        batch_size=batch_size,
-                        epochs=num_epochs,
-                        verbose=1,
-                        validation_split=val_frac, 
-                        callbacks=[early_stopping, TerminateOnNaN()])
-    
-    test_score = model.evaluate(X_unseen, y_unseen, verbose=0)
-    print('lamda: ' + str(lamda) + ' TestRMSE: ' + str(test_score[2]) + ' PhyLoss: ' + str(test_score[1]))
         
-    hist_df = pd.DataFrame(history.history)  
+        test_score = model.evaluate(X_unseen, y_unseen, verbose=0)
+        test_scores.append(test_score)
+        print('lamda: ' + str(lamda) + ' TestRMSE: ' + str(test_score[2]) + ' PhyLoss: ' + str(test_score[1]))
+        
+        history = pd.DataFrame(history.history)
+        hist_df.append(history)  
 
-    data = {'X_Scaled':X_scaled, 'y_scaled':y_scaled, 'X_train':X_train, 
-            'X_unseen':X_unseen, 'y_train':y_train, 'y_unseen':y_unseen, 
-            'scaler_x':scaler_x, 'scaler2':scaler2, 'scaler_y':scaler_y, 
-            'X_scaled_og':X_scaled_og, 'y_og':y_og}   
+        datasets.append({'X_Scaled':X_scaled, 'y_scaled':y_scaled, 'X_train':X_train, 
+                'X_unseen':X_unseen, 'y_train':y_train, 'y_unseen':y_unseen, 
+                'scaler_x':scaler_x, 'scaler2':scaler2, 'scaler_y':scaler_y, 
+                'X_scaled_og':X_scaled_og, 'y_og':y_og})   
+        
     
-    return hist_df, model, data
+    return hist_df, model, datasets, test_scores
 
 
 
 
 if __name__ == '__main__':	
     
-      
-    hist, model, data = NN_train_test()
+    def gridsearch_epoch_bs(load):
+        
+        #Grid search batch size and num epochs
+        epochs = [10, 50, 100]
+        batch_size = [10, 20, 40, 60, 80, 100]
+        if load != 0:
+            score_RMSE = []
+            for i in epochs:
+                for j in batch_size:
+                    hists, model, data, test_scores = NN_train_test(i, j, 'Adam')
+                    score_RMSE.append(test_scores)
+            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))]            
+            RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
+            RMSE_10 , RMSE_50, RMSE_100 = pd.DataFrame(RMSE_10, columns = batch_size), pd.DataFrame(RMSE_50, columns = batch_size), pd.DataFrame(RMSE_100, columns = batch_size)
+            score_RMSE = [RMSE_10, RMSE_50, RMSE_100]
+            save_obj(score_RMSE, 'Epoch_batch_Score_RMSE')
+        else:
+            score_RMSE = load_obj('Epoch_batch_Score_RMSE')
+            RMSE_10, RMSE_50, RMSE_100 = score_RMSE[0], score_RMSE[1], score_RMSE[2]
+        
+        fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+        sns.pointplot(data = RMSE_10, capsize=.2, color='blue', ax = ax)
+        sns.pointplot(data = RMSE_50, capsize=.2, color='red', ax = ax)
+        sns.pointplot(data = RMSE_100, capsize=.2, color='black', ax = ax)
+        labels = ['10', '50', '100']
+        colors = ['blue', 'red', 'black']
+        lws = [0.5, 0.5, 0.5]
+        lss = ['-', '-', '-']
+        lines = [Line2D([0], [0],  lw=lws[i], ls = lss[i], color=colors[i]) for i in range(len(labels))]
+        ax.legend(lines,labels, title = 'No. epochs', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.set_xlabel('Batch Size')
+        ax.set_ylabel('RMSE')
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_epoch_batchsize_NN.pdf")
+        
+    def gridsearch_opt(load=1):
+        optimizer_names = ['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam']
+        if load != 0:
+            score_RMSE = []
+            for i in optimizer_names:
+                hists, model, data, test_scores = NN_train_test(50, 20, i)
+                score_RMSE.append(test_scores)
+            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+            score = pd.DataFrame(np.stack(RMSE).T, columns = optimizer_names)
+            save_obj(score, 'Opt_Score_RMSE')
+        else:
+            score_RMSE = load_obj('Opt_Score_RMSE')
+        
+        fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+        l = sns.pointplot(data = score_RMSE, capsize=.2, color='black', join = False, ax = ax)
+        plt.setp(l.get_xticklabels(), rotation=30)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.set_xlabel('Optimizer')
+        ax.set_ylabel('RMSE')
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_opt_NN.pdf")
+
+
+    def gridsearch_lr(load = 1):
+        learn_rate = [0.001, 0.01, 0.1, 0.2]
+        if load != 0:
+            score_RMSE = []
+            for i in learn_rate:
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = i)
+                score_RMSE.append(test_scores)
+            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+            score = pd.DataFrame(np.stack(RMSE).T, columns = learn_rate)
+            save_obj(score, 'Learnrate_Score_RMSE')
+        else:
+            score_RMSE = load_obj('Learnrate_Score_RMSE')
+            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+            l = sns.pointplot(x = 0.001, data = score_RMSE, capsize=.2, color='black', ax = ax)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            ax.set_xlabel('Learn rate')
+            ax.set_ylabel('RMSE')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_opt_NN.pdf")            
+         
+
     
 
-    # Figure for unseen evaluations
-    fig, ax = plt.subplots(1,1, figsize=(3,3))
-    ax.scatter(data['y_unseen'], model.predict(data['X_unseen']), s=7., color='black')
-    text = "$R^2 = {:.3f}$".format(r2_score(data['y_unseen'],model.predict(data['X_unseen'])))
-    ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
-    ax.set_ylabel('Predicted response')
-    ax.set_xlabel('Actual response')
-    ax.set_title('Unseen validation data')
-    ax.set_xlim(0,1)
-    ax.set_ylim(0,1)
-    ax.minorticks_on()
-    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    plt.tight_layout()
+    def unseen():
+        i = 0
+        # Figure for unseen evaluations
+        fig, ax = plt.subplots(1,1, figsize=(3,3))
+        ax.scatter(data[i]['y_unseen'], model.predict(data[i]['X_unseen']), s=7., color='black')
+        text = "$R^2 = {:.3f}$".format(r2_score(data[i]['y_unseen'],model.predict(data[i]['X_unseen'])))
+        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.set_title('Unseen validation data')
+        ax.set_xlim(0,1)
+        ax.set_ylim(0,1)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        plt.tight_layout()
 
 
 
