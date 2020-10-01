@@ -51,6 +51,7 @@ params = {'font.family':'serif',
         
         'scatter.marker': 's',
         
+        
         'grid.linewidth':'0.5',
         
         'lines.linewidth':'0.5'}
@@ -196,7 +197,7 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None):
      
     #set lamdas=0 for pgnn0
     lamda = 0 # Physics-based regularization constant - Z
@@ -208,8 +209,11 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None):
     
     batch_size = batch
     num_epochs = epochs
-     
-    drop_frac = 0
+    
+    if dropout == None:
+        drop_frac = 0
+    else:
+        drop_frac = dropout
     n_nodes = 200
     
     #Data
@@ -296,31 +300,44 @@ if __name__ == '__main__':
                 for j in batch_size:
                     hists, model, data, test_scores = NN_train_test(i, j, 'Adam')
                     score_RMSE.append(test_scores)
-            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))]            
-            RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
-            RMSE_10 , RMSE_50, RMSE_100 = pd.DataFrame(RMSE_10, columns = batch_size), pd.DataFrame(RMSE_50, columns = batch_size), pd.DataFrame(RMSE_100, columns = batch_size)
             score_RMSE = [RMSE_10, RMSE_50, RMSE_100]
             save_obj(score_RMSE, 'Epoch_batch_Score_RMSE')
         else:
             score_RMSE = load_obj('Epoch_batch_Score_RMSE')
-            RMSE_10, RMSE_50, RMSE_100 = score_RMSE[0], score_RMSE[1], score_RMSE[2]
+            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))]
+            RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
+            
         
         fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-        sns.pointplot(data = RMSE_10, capsize=.2, color='blue', ax = ax)
-        sns.pointplot(data = RMSE_50, capsize=.2, color='red', ax = ax)
-        sns.pointplot(data = RMSE_100, capsize=.2, color='black', ax = ax)
-        labels = ['10', '50', '100']
-        colors = ['blue', 'red', 'black']
-        lws = [0.5, 0.5, 0.5]
-        lss = ['-', '-', '-']
-        lines = [Line2D([0], [0],  lw=lws[i], ls = lss[i], color=colors[i]) for i in range(len(labels))]
-        ax.legend(lines,labels, title = 'No. epochs', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
+        ax.scatter(batch_size, RMSE_10.mean(0), s=10, c='blue', label = '10')
+        err = np.stack((RMSE_10.min(0).reshape(1, 6), RMSE_10.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
+        err = abs(err - RMSE_10.mean(0))
+        ax.errorbar(batch_size, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue')
+        
+        
+        ax.scatter(batch_size, RMSE_50.mean(0), s=10, c='red', label = '50')
+        err = np.stack((RMSE_50.min(0).reshape(1, 6), RMSE_50.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
+        err = abs(err - RMSE_50.mean(0))
+        ax.errorbar(batch_size, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red')
+        
+        ax.scatter(batch_size, RMSE_100.mean(0), s=10, c='black', label = '100')
+        err = np.stack((RMSE_100.min(0).reshape(1, 6), RMSE_100.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
+        err = abs(err - RMSE_100.mean(0))
+        ax.errorbar(batch_size, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black')
+        
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, title = 'No. epochs', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
         ax.minorticks_on()
+        ax.set_xlim(0,120)
+        ax.set_ylim(0,0.2)
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Batch Size')
         ax.set_ylabel('RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_epoch_batchsize_NN.pdf")
+        
+        
+        
         
     def gridsearch_opt(load=1):
         optimizer_names = ['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam']
@@ -336,9 +353,10 @@ if __name__ == '__main__':
             score_RMSE = load_obj('Opt_Score_RMSE')
         
         fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-        l = sns.pointplot(data = score_RMSE, capsize=.2, color='black', join = False, ax = ax)
+        l = sns.pointplot(data = score_RMSE, markers = 's', capsize=.2, errwidth = 0.5, color='black', join = False, ax = ax)
         plt.setp(l.get_xticklabels(), rotation=30)
         ax.minorticks_on()
+        ax.set_ylim(0,0.16)
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Optimizer')
@@ -359,13 +377,30 @@ if __name__ == '__main__':
         else:
             score_RMSE = load_obj('Learnrate_Score_RMSE')
             fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            l = sns.pointplot(x = 0.001, data = score_RMSE, capsize=.2, color='black', ax = ax)
+            err = np.stack((score_RMSE.min().values.reshape(1, 4), score_RMSE.max().values.reshape(1, 4)), axis = 1).reshape(2,4)
+            err = abs(err - score_RMSE.mean().values)
+            ax.scatter(learn_rate, score_RMSE.mean(), s=10, c='k')
+            ax.errorbar(learn_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+            ax.set_xscale('log')
+            ax.set_ylim(0,0.25)
             ax.minorticks_on()
             ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
             ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
             ax.set_xlabel('Learn rate')
             ax.set_ylabel('RMSE')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_opt_NN.pdf")            
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lr_NN.pdf")         
+            
+    def gridsearch_dropout(load = 1):
+        dropout_rate = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        if load != 0:
+            score_RMSE = []
+            for i in dropout_rate:
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = i)
+                score_RMSE.append(test_scores)
+                save_obj(score_RMSE, 'dropout_Score_RMSE')
+            #RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+            #score = pd.DataFrame(np.stack(RMSE).T, columns = learn_rate)
+            #save_obj(score, 'dropout_Score_RMSE')        
          
 
     
