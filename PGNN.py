@@ -11,6 +11,7 @@ from keras.callbacks import EarlyStopping, TerminateOnNaN
 from keras import backend as K
 from keras.losses import mean_squared_error, mean_absolute_error
 from keras.regularizers import l2
+from keras.models import load_model
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler, PowerTransformer
@@ -197,10 +198,13 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None):
      
     #set lamdas=0 for pgnn0
-    lamda = 0 # Physics-based regularization constant - Z
+    if lamda1 == None:
+        lamda = 0 # Physics-based regularization constant - Z
+    else:
+        lamda = lamda1
     lamda2 = 0  #Physics-based regularization constant - theta monotonic
     lamda3 = 0 #theta smoothness    
     
@@ -308,7 +312,7 @@ if __name__ == '__main__':
             RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
             
         
-        fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
         ax.scatter(batch_size, RMSE_10.mean(0), s=10, c='blue', label = '10')
         err = np.stack((RMSE_10.min(0).reshape(1, 6), RMSE_10.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_10.mean(0))
@@ -352,7 +356,7 @@ if __name__ == '__main__':
         else:
             score_RMSE = load_obj('Opt_Score_RMSE')
         
-        fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
         l = sns.pointplot(data = score_RMSE, markers = 's', capsize=.2, errwidth = 0.5, color='black', join = False, ax = ax)
         plt.setp(l.get_xticklabels(), rotation=30)
         ax.minorticks_on()
@@ -376,19 +380,19 @@ if __name__ == '__main__':
             save_obj(score, 'Learnrate_Score_RMSE')
         else:
             score_RMSE = load_obj('Learnrate_Score_RMSE')
-            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            err = np.stack((score_RMSE.min().values.reshape(1, 4), score_RMSE.max().values.reshape(1, 4)), axis = 1).reshape(2,4)
-            err = abs(err - score_RMSE.mean().values)
-            ax.scatter(learn_rate, score_RMSE.mean(), s=10, c='k')
-            ax.errorbar(learn_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
-            ax.set_xscale('log')
-            ax.set_ylim(0,0.25)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            ax.set_xlabel('Learn rate')
-            ax.set_ylabel('RMSE')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lr_NN.pdf")         
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        err = np.stack((score_RMSE.min().values.reshape(1, 4), score_RMSE.max().values.reshape(1, 4)), axis = 1).reshape(2,4)
+        err = abs(err - score_RMSE.mean().values)
+        ax.scatter(learn_rate, score_RMSE.mean(), s=10, c='k')
+        ax.errorbar(learn_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+        ax.set_xscale('log')
+        ax.set_ylim(0,0.25)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.set_xlabel('Learn rate')
+        ax.set_ylabel('RMSE')
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lr_NN.pdf")         
             
     def gridsearch_dropout(load = 1):
         dropout_rate = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -398,30 +402,84 @@ if __name__ == '__main__':
                 hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = i)
                 score_RMSE.append(test_scores)
                 save_obj(score_RMSE, 'dropout_Score_RMSE')
-            #RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
-            #score = pd.DataFrame(np.stack(RMSE).T, columns = learn_rate)
-            #save_obj(score, 'dropout_Score_RMSE')        
-         
+            else:
+                score_RMSE = load_obj('dropout_Score_RMSE')
+                RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+                score_RMSE = pd.DataFrame(np.stack(RMSE).T, columns = dropout_rate)
+            
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            err = np.stack((score_RMSE.min().values.reshape(1, len(score_RMSE.T)), score_RMSE.max().values.reshape(1, len(score_RMSE.T))), axis = 1).reshape(2,len(score_RMSE.T))
+            err = abs(err - score_RMSE.mean().values)
+            ax.scatter(dropout_rate, score_RMSE.mean(), s=10, c='k')
+            ax.errorbar(dropout_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+            ax.set_ylim(0,0.30)
+            #ax.set_xlim(0,1)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            ax.set_xlabel('Dropout')
+            ax.set_ylabel('RMSE')                  
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_dropout_NN.pdf")
 
-    
+    def performance(load = 1):
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3)
+            model.save('obj/NNmodel')
+            NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(NN, 'NN')  
+        else:
+            NN = load_obj('NN')
+            fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+            fax = ax.ravel()
+            for i in range(0,len(NN['hist'])):
+                fax[i].plot(hists[i]['val_loss'], 'k--', label = 'Validation set')
+                fax[i].plot(hists[i]['loss'], 'k', label = 'Training set')
+                fax[i].minorticks_on()
+                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+                fax[i].set_xlabel('Epoch')
+                fax[i].set_ylabel('Loss')  
+                if i == 0:                    
+                    handles, labels = fax[i].get_legend_handles_labels()
+                    fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+                else:
+                    pass
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
 
-    def unseen():
-        i = 0
-        # Figure for unseen evaluations
-        fig, ax = plt.subplots(1,1, figsize=(3,3))
-        ax.scatter(data[i]['y_unseen'], model.predict(data[i]['X_unseen']), s=7., color='black')
-        text = "$R^2 = {:.3f}$".format(r2_score(data[i]['y_unseen'],model.predict(data[i]['X_unseen'])))
-        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
-        ax.set_ylabel('Predicted response')
-        ax.set_xlabel('Actual response')
-        ax.set_title('Unseen validation data')
-        ax.set_xlim(0,1)
-        ax.set_ylim(0,1)
-        ax.minorticks_on()
-        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-        plt.tight_layout()
 
+            load_model = tf.keras.models.load_model('obj/NNmodel.h5', 
+                                    custom_objects={'loss':combined_loss,
+                                                    'root_mean_squared_error':root_mean_squared_error,
+                                                    }, compile = False)
+            
+
+            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+            ax.scatter(NN['data'][0]['y_unseen'], load_model.predict(NN['data'][0]['X_unseen']), s=10., color='black')
+            text = "$R^2 = {:.3f}$".format(r2_score(NN['data'][0]['y_unseen'],load_model.predict(NN['data'][0]['X_unseen'])))
+            ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+            ax.set_ylabel('Predicted response')
+            ax.set_xlabel('Actual response')
+            ax.set_xlim(0,1)
+            ax.set_ylim(0,1)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_NN.pdf")
+
+
+    def gridsearch_lamda(load=1):
+        
+        #Grid search batch size and num epochs
+        lamda = np.logspace(-2,1,10)
+        if load != 0:
+            score_RMSE = []
+            for i in lamda:
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = i)
+                    score_RMSE.append(test_scores)
+            
+            save_obj(score_RMSE, 'PCNN_lamda1')
+        else:
+            pass
 
 
 
