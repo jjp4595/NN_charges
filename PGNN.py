@@ -432,8 +432,8 @@ if __name__ == '__main__':
             fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
             fax = ax.ravel()
             for i in range(0,len(NN['hist'])):
-                fax[i].plot(hists[i]['val_loss'], 'k--', label = 'Validation set')
-                fax[i].plot(hists[i]['loss'], 'k', label = 'Training set')
+                fax[i].plot(NN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
+                fax[i].plot(NN['hist'][i]['loss'], 'k', label = 'Training set')
                 fax[i].minorticks_on()
                 fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
                 fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
@@ -446,7 +446,7 @@ if __name__ == '__main__':
                     pass
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
 
-
+            import tensorflow as tf
             load_model = tf.keras.models.load_model('obj/NNmodel.h5', 
                                     custom_objects={'loss':combined_loss,
                                                     'root_mean_squared_error':root_mean_squared_error,
@@ -459,8 +459,8 @@ if __name__ == '__main__':
             ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
             ax.set_ylabel('Predicted response')
             ax.set_xlabel('Actual response')
-            ax.set_xlim(0,1)
-            ax.set_ylim(0,1)
+            #ax.set_xlim(0,1)
+            #ax.set_ylim(0,1)
             ax.minorticks_on()
             ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
             ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
@@ -479,7 +479,68 @@ if __name__ == '__main__':
             
             save_obj(score_RMSE, 'PCNN_lamda1')
         else:
-            pass
+            score_RMSE = load_obj('PCNN_lamda1')
+            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+            score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
+        
+            
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
+        err = abs(err - score.mean().values)
+        ax.scatter(lamda, score.mean(), s=10, c='k')
+        ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+        ax.set_xscale('log')
+        #ax.set_ylim(0,0.25)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.set_xlabel('Lambda')
+        ax.set_ylabel('RMSE')
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN.pdf")
+
+    def PGNNperformance(load = 1):
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = np.logspace(-2,1,10)[2])
+            model.save('obj/PGNNmodel.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN')  
+        else:
+            PGNN = load_obj('PGNN')
+        
+        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+        fax = ax.ravel()
+        for i in range(0,len(PGNN['hist'])):
+            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
+            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
+            fax[i].minorticks_on()
+            fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            fax[i].set_xlabel('Epoch')
+            fax[i].set_ylabel('Loss')  
+            if i == 0:                    
+                handles, labels = fax[i].get_legend_handles_labels()
+                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+            else:
+                pass
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN.pdf")
+
+        import tensorflow as tf
+        load_model = tf.keras.models.load_model('obj/PGNNmodel.h5', 
+                                custom_objects={'loss':combined_loss,
+                                                'root_mean_squared_error':root_mean_squared_error,
+                                                }, compile = False)
+        
+
+        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        ax.scatter(NN['data'][0]['y_unseen'], load_model.predict(NN['data'][0]['X_unseen']), s=10., color='black')
+        text = "$R^2 = {:.3f}$".format(r2_score(NN['data'][0]['y_unseen'],load_model.predict(NN['data'][0]['X_unseen'])))
+        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN.pdf")
 
 
 
