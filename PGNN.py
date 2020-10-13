@@ -11,13 +11,15 @@ from keras.callbacks import EarlyStopping, TerminateOnNaN
 from keras import backend as K
 from keras.losses import mean_squared_error, mean_absolute_error
 from keras.regularizers import l2
-from keras.models import load_model
+
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler, PowerTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from sklearn.metrics import r2_score
+from sklearn.svm import SVR
+
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
@@ -198,7 +200,7 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, removefirst = None, removelast = None, holdout = None):
      
     #set lamdas=0 for pgnn0
     if lamda1 == None:
@@ -221,14 +223,25 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
     n_nodes = 200
     
     #Data
+    if holdout == None:
+        test_frac = 0.10
+    else:
+        test_frac = holdout
     
-    test_frac = 0.10
     patience_val = int(0.3 * num_epochs)
 
     #load data
     scaling_input = 1
-    remove_first = 0
-    remove_last = 0
+    
+    if removefirst == None:
+        remove_first = 0
+    else:
+        remove_first = removefirst
+            
+    if removelast == None:
+        remove_last = 0
+    else:
+        remove_last = removelast
     
     X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, remove_last, remove_first, test_frac)
     
@@ -532,8 +545,8 @@ if __name__ == '__main__':
         
 
         fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-        ax.scatter(NN['data'][0]['y_unseen'], load_model.predict(NN['data'][0]['X_unseen']), s=10., color='black')
-        text = "$R^2 = {:.3f}$".format(r2_score(NN['data'][0]['y_unseen'],load_model.predict(NN['data'][0]['X_unseen'])))
+        ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
+        text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
         ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
         ax.set_ylabel('Predicted response')
         ax.set_xlabel('Actual response')
@@ -542,84 +555,96 @@ if __name__ == '__main__':
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN.pdf")
 
+    def extrapolate_networks(load = 0):
+        rf, rl = 4, 
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = 0, removefirst = rf, removelast = rl)
+            model.save('obj/NNmodel_extrapolate.h5')
+            NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(NN, 'NN_extrapolate')   
+            
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = np.logspace(-2,1,10)[2], removefirst = rf, removelast = rl)
+            model.save('obj/PGNNmodel_extrapolate.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN_extrapolate')          
+        else:
+            NN = load_obj('NN_extrapolate')
+            PGNN = load_obj('PGNN_extrapolate')
+            
+            import tensorflow as tf
+            load_NN = tf.keras.models.load_model('obj/NNmodel_extrapolate.h5', 
+                                                    custom_objects={'loss':combined_loss,
+                                                                    'root_mean_squared_error':root_mean_squared_error,
+                                                                    }, compile = False)
+            load_PGNN = tf.keras.models.load_model('obj/PGNNmodel_extrapolate.h5', 
+                                                    custom_objects={'loss':combined_loss,
+                                                                    'root_mean_squared_error':root_mean_squared_error,
+                                                                    }, compile = False)
+        
+            #Dataset plots 1
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, remove_last = rl, remove_first = rf, test_frac=0.05)
+            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
+            fax = ax.ravel()
+            for i in range(0,9):
+                exp = 200 * i
+                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                theta = np.linspace(0,80,200).reshape(200,1)                
+                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
+                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
+                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
+                fax[i].set_xlabel('Theta', fontsize='x-small')
+                fax[i].set_xlim(0,80)
+                fax[i].minorticks_on()
+                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = fax[0].get_legend_handles_labels()
+            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_1.pdf")
+            
+            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
+            fax = ax.ravel()            
+            for i in range(0,9):
+                exp = 200 * (i+9)
+                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                theta = np.linspace(0,80,200).reshape(200,1)                
+                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
+                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
+                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
+                fax[i].set_xlabel('Theta', fontsize='x-small')
+                fax[i].set_xlim(0,80)
+                fax[i].minorticks_on()
+                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = fax[0].get_legend_handles_labels()
+            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_2.pdf")
 
-
-
-
-
-
+    def holdout_networks(load = 0):
+        tf = 0.1
+        if load != 0:
+           X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0)
+        else:
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            opt.best_params_
+            svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+            svr_rbf.fit(X_scaled, y_scaled.reshape(3600))
+            lol = scaler_y.inverse_transform(svr_rbf.predict(X_scaled[0:200]).reshape(200,1))
+            plt.plot(lol)
 
 """
 
 if plotting != 0:
     
-    #Dataset plots 1
-    fig, ax = plt.subplots(3, 3, figsize=(8,8))
-    fax = ax.ravel()
-    for i in range(0,9):
-        exp = 200 * i
-        pred = model.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
 
-        theta = np.linspace(0,80,200).reshape(200,1)
-        
-        
-        fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')
-        
-        if data[exp,2] < 0.21:
-            fax[i].plot(theta, JP_lowZ(data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
-        else:
-            fax[i].plot(theta, JP_highZ(data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
-        
-        if scaling_input == 1:
-            #fax[i].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred)), 'r', label = 'model')    
-            fax[i].plot(theta, scaler_y.inverse_transform(pred), 'r', label = 'model')
-        else:
-            fax[i].plot(theta, pred, 'r', label = 'model')
-        
-        fax[i].set_title("Z ="+str(np.round(data[exp,2],3)))
-        fax[i].set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-        fax[i].set_xlabel('theta', fontsize='x-small')
-        fax[i].set_xlim(0,80)
-        fax[i].minorticks_on()
-        fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-    plt.tight_layout()
-    handles, labels = fax[0].get_legend_handles_labels()
-    fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
-    #fig.savefig("NN1.png")
-    
-    #Dataset plots 2
-    fig, ax = plt.subplots(3, 3, figsize=(8,8))
-    fax = ax.ravel()
-    
-    for i in range(9,18):
-        exp = 200 * i
-        pred = model.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-        theta = np.linspace(0,80,200).reshape(200,1)
-        
-        
-        fax[i-9].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')
-        
-        if data[exp,2] < 0.21:
-            fax[i-9].plot(theta, JP_lowZ(data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
-        else:
-            fax[i-9].plot(theta, JP_highZ(data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
-            
-        if scaling_input == 1:
-            #fax[i-9].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred)), 'r', label = 'model')    
-            fax[i-9].plot(theta, scaler_y.inverse_transform(pred), 'r', label = 'model')
-        else:
-            fax[i-9].plot(theta, pred, 'r', label = 'model')
-        
-        fax[i-9].set_title("Z ="+str(np.round(data[exp,2],3)))
-        fax[i-9].set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-        fax[i-9].set_xlabel('theta', fontsize='x-small')
-        fax[i-9].set_xlim(0,80)
-        fax[i-9].minorticks_on()
-        fax[i-9].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        fax[i-9].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-    plt.tight_layout()      
-    #fig.savefig("NN2.png")
     
     
     
