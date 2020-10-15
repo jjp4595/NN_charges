@@ -15,11 +15,12 @@ from keras.regularizers import l2
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import MinMaxScaler, PowerTransformer
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split, KFold, RepeatedKFold
+
 from sklearn.metrics import r2_score
 from sklearn.svm import SVR
-
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import cross_val_score
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
@@ -77,24 +78,6 @@ def JP_highZ(Z,theta):#scaled impulse
 
 
 
-
-#function to compute the room_mean_squared_error given the ground truth (y_true) and the predictions(y_pred)
-def root_mean_squared_error(y_true, y_pred):
-        return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1)) 
-
-
-def phy_loss_mean(params):
-	# useful for cross-checking training
-    zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3 = params
-    #zimpdiff, lam, thetaimpdiff, lam2 = params
-    def loss(y_true,y_pred):
-        if lam3 != 0:
-            return K.mean(K.relu(zimpdiff)) + K.mean(K.relu(thetaimpdiff)) + lam3 * K.mean(K.relu(thetaimpratio - 1.06))
-        else:
-            return K.mean(K.relu(zimpdiff)) + K.mean(K.relu(thetaimpdiff))  
-    return loss
-
-
 #function to calculate the combined loss = sum of rmse and phy based loss
 def combined_loss(params):
     zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3 = params
@@ -106,8 +89,14 @@ def combined_loss(params):
             return mean_squared_error(y_true, y_pred) + lam * K.mean(K.relu(zimpdiff)) + lam2 * K.mean(K.relu(thetaimpdiff))
     return loss
 
-
-
+# def mse_loss_without_phys(params):
+#     """
+#     Additional metric that just returns MSE. Use when the physics constraint is activated so that test RMSE results are comparable.
+#     """
+#     #zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3 = params
+#     def loss(y_true,y_pred):
+#             return mean_squared_error(y_true, y_pred)
+#     return loss
 
 
 
@@ -155,7 +144,7 @@ def load_data(scaling_input, remove_last, remove_first, test_frac):
         pass
 
     #Split data to 90% train & 10% unseen
-    X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, random_state=32)
+    X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, shuffle = True, random_state=32)
     
     return X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og
 
@@ -195,8 +184,9 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
     thetaimpratio = thetaout1 / thetaout2
 
     totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3])
-    phyloss = phy_loss_mean([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3]) #for cross checking
-    return totloss, phyloss
+    #non_phy_loss = mse_loss_without_phys([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3])
+    
+    return totloss
 
 
 
@@ -256,12 +246,15 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
             model.add(Dropout(drop_frac))
     model.add(Dense(1, activation='linear'))    
     
-    totloss, phyloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
+    totloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
     
-    model.compile(loss=totloss,
-                  optimizer=opt_str,
-                  
-                  metrics=[phyloss, root_mean_squared_error])
+    if lamda1 == None:
+        model.compile(loss='mean_squared_error',
+                      optimizer=opt_str)
+    else:
+        model.compile(loss=totloss,
+                      optimizer=opt_str,
+                      metrics = ['mean_squared_error'])            
     
     if learn_rate != None:
         K.set_value(model.optimizer.learning_rate,learn_rate)
@@ -271,7 +264,11 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
 
     kf = KFold(n_splits=4, shuffle = True)
     hist_df, test_scores, datasets = [], [], []
-    early_stopping = EarlyStopping(monitor='val_loss_1', patience=patience_val, verbose=1)
+    
+    if lamda1 == None:
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience_val, verbose=1)
+    else:
+        early_stopping = EarlyStopping(monitor='val_mean_squared_error', patience=patience_val, verbose=1)
     
     for train_index, test_index in kf.split(X_train, y=y_train):
         
@@ -284,12 +281,11 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
                             validation_data=(X_train[test_index],
                                             y_train[test_index]),
                             validation_freq=1,
-                            callbacks=[early_stopping, TerminateOnNaN()])
+                            callbacks=[early_stopping])
         
         test_score = model.evaluate(X_unseen, y_unseen, verbose=0)
         test_scores.append(test_score)
-        print('lamda: ' + str(lamda) + ' TestRMSE: ' + str(test_score[2]) + ' PhyLoss: ' + str(test_score[1]))
-        
+                
         history = pd.DataFrame(history.history)
         hist_df.append(history)  
 
@@ -306,24 +302,25 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
 
 if __name__ == '__main__':	
     
-    def gridsearch_epoch_bs(load):
+    def gridsearch_epoch_bs(load = 0):
         
         #Grid search batch size and num epochs
         epochs = [10, 50, 100]
         batch_size = [10, 20, 40, 60, 80, 100]
         if load != 0:
-            score_RMSE = []
+            score_RMSE, histories = [],[]
             for i in epochs:
                 for j in batch_size:
                     hists, model, data, test_scores = NN_train_test(i, j, 'Adam')
                     score_RMSE.append(test_scores)
-            score_RMSE = [RMSE_10, RMSE_50, RMSE_100]
-            save_obj(score_RMSE, 'Epoch_batch_Score_RMSE')
+                    histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
+            save_obj(all_info, 'Epoch_batch_Score_RMSE')
         else:
-            score_RMSE = load_obj('Epoch_batch_Score_RMSE')
-            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))]
+            all_info = load_obj('Epoch_batch_Score_RMSE')
+            RMSE = all_info['RMSE']
             RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
-            
+            RMSE_10, RMSE_50, RMSE_100 = RMSE_10**0.5, RMSE_50**0.5, RMSE_100**0.5
         
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
         ax.scatter(batch_size, RMSE_10.mean(0), s=10, c='blue', label = '10')
@@ -350,93 +347,105 @@ if __name__ == '__main__':
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Batch Size')
-        ax.set_ylabel('RMSE')
+        ax.set_ylabel('Test RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_epoch_batchsize_NN.pdf")
         
         
         
         
-    def gridsearch_opt(load=1):
+    def gridsearch_opt(load=0):
         optimizer_names = ['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam']
         if load != 0:
-            score_RMSE = []
+            score_RMSE, histories = [],[]
             for i in optimizer_names:
                 hists, model, data, test_scores = NN_train_test(50, 20, i)
                 score_RMSE.append(test_scores)
-            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
-            score = pd.DataFrame(np.stack(RMSE).T, columns = optimizer_names)
-            save_obj(score, 'Opt_Score_RMSE')
+                histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
+            save_obj(all_info, 'Opt_Score_RMSE')
         else:
             score_RMSE = load_obj('Opt_Score_RMSE')
-        
+            RMSE = score_RMSE['RMSE']
+            RMSE = (np.stack(RMSE).T)**0.5
+            score = pd.DataFrame(data = RMSE, columns = optimizer_names)
+            
+        import seaborn as sns
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        l = sns.pointplot(data = score_RMSE, markers = 's', capsize=.2, errwidth = 0.5, color='black', join = False, ax = ax)
+        l = sns.pointplot(data = score, markers = 's', capsize=.2, errwidth = 0.5, color='black', join = False, ax = ax)
         plt.setp(l.get_xticklabels(), rotation=30)
         ax.minorticks_on()
         ax.set_ylim(0,0.16)
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Optimizer')
-        ax.set_ylabel('RMSE')
+        ax.set_ylabel('Test RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_opt_NN.pdf")
 
 
-    def gridsearch_lr(load = 1):
+    def gridsearch_lr(load =0):
         learn_rate = [0.001, 0.01, 0.1, 0.2]
         if load != 0:
-            score_RMSE = []
+            score_RMSE, histories = [],[]
             for i in learn_rate:
                 hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = i)
                 score_RMSE.append(test_scores)
-            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
-            score = pd.DataFrame(np.stack(RMSE).T, columns = learn_rate)
-            save_obj(score, 'Learnrate_Score_RMSE')
+                histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
+            save_obj(all_info, 'Learnrate_Score_RMSE')
         else:
             score_RMSE = load_obj('Learnrate_Score_RMSE')
+            RMSE = score_RMSE['RMSE']
+            RMSE = (np.stack(RMSE).T)**0.5
+            score = pd.DataFrame(data = RMSE, columns = learn_rate)
+            
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        err = np.stack((score_RMSE.min().values.reshape(1, 4), score_RMSE.max().values.reshape(1, 4)), axis = 1).reshape(2,4)
-        err = abs(err - score_RMSE.mean().values)
-        ax.scatter(learn_rate, score_RMSE.mean(), s=10, c='k')
-        ax.errorbar(learn_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+        err = np.stack((score.min().values.reshape(1, 4), score.max().values.reshape(1, 4)), axis = 1).reshape(2,4)
+        err = abs(err - score.mean().values)
+        ax.scatter(learn_rate, score.mean(), s=10, c='k')
+        ax.errorbar(learn_rate, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
         ax.set_xscale('log')
         ax.set_ylim(0,0.25)
         ax.minorticks_on()
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Learn rate')
-        ax.set_ylabel('RMSE')
+        ax.set_ylabel('Test RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lr_NN.pdf")         
             
-    def gridsearch_dropout(load = 1):
+    def gridsearch_dropout(load = 0):
         dropout_rate = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
         if load != 0:
-            score_RMSE = []
+            score_RMSE, histories = [],[]
             for i in dropout_rate:
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = i)
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.001, dropout = i)
                 score_RMSE.append(test_scores)
-                save_obj(score_RMSE, 'dropout_Score_RMSE')
-            else:
-                score_RMSE = load_obj('dropout_Score_RMSE')
-                RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
-                score_RMSE = pd.DataFrame(np.stack(RMSE).T, columns = dropout_rate)
-            
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            err = np.stack((score_RMSE.min().values.reshape(1, len(score_RMSE.T)), score_RMSE.max().values.reshape(1, len(score_RMSE.T))), axis = 1).reshape(2,len(score_RMSE.T))
-            err = abs(err - score_RMSE.mean().values)
-            ax.scatter(dropout_rate, score_RMSE.mean(), s=10, c='k')
-            ax.errorbar(dropout_rate, score_RMSE.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
-            ax.set_ylim(0,0.30)
-            #ax.set_xlim(0,1)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            ax.set_xlabel('Dropout')
-            ax.set_ylabel('RMSE')                  
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_dropout_NN.pdf")
+                histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
+            save_obj(all_info, 'dropout_Score_RMSE')
+                
+        else:
+            score_RMSE = load_obj('dropout_Score_RMSE')
+            RMSE = score_RMSE['RMSE']
+            RMSE = (np.stack(RMSE).T)**0.5
+            score = pd.DataFrame(data = RMSE, columns = dropout_rate)
+        
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        err = np.stack((score.min().values.reshape(1, len(score.T)), score.max().values.reshape(1, len(score.T))), axis = 1).reshape(2,len(score.T))
+        err = abs(err - score.mean().values)
+        ax.scatter(dropout_rate, score.mean(), s=10, c='k')
+        ax.errorbar(dropout_rate, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+        ax.set_ylim(0,0.30)
+        #ax.set_xlim(0,1)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.set_xlabel('Dropout')
+        ax.set_ylabel('Test RMSE')                  
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_dropout_NN.pdf")
 
-    def performance(load = 1):
+    def performance(load = 0):
         if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3)
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
             model.save('obj/NNmodel')
             NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(NN, 'NN')  
@@ -480,20 +489,23 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_NN.pdf")
 
 
-    def gridsearch_lamda(load=1):
+    def gridsearch_lamda(load=0):
         
         #Grid search batch size and num epochs
         lamda = np.logspace(-2,1,10)
         if load != 0:
-            score_RMSE = []
+            score_RMSE, histories = [],[]
             for i in lamda:
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = i)
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = i)
                     score_RMSE.append(test_scores)
+                    histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
             
-            save_obj(score_RMSE, 'PCNN_lamda1')
+            save_obj(all_info, 'PCNN_lamda1')
         else:
             score_RMSE = load_obj('PCNN_lamda1')
-            RMSE = [np.stack(score_RMSE[i])[:,2] for i in range(len(score_RMSE))] 
+            RMSE = score_RMSE['RMSE']
+            RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))] 
             score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
         
             
@@ -508,12 +520,12 @@ if __name__ == '__main__':
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Lambda')
-        ax.set_ylabel('RMSE')
+        ax.set_ylabel('Test RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN.pdf")
 
     def PGNNperformance(load = 1):
         if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = np.logspace(-2,1,10)[2])
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[2])
             model.save('obj/PGNNmodel.h5')
             PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(PGNN, 'PGNN')  
@@ -558,12 +570,12 @@ if __name__ == '__main__':
     def extrapolate_networks(load = 0):
         rf, rl = 4, 
         if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = 0, removefirst = rf, removelast = rl)
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removefirst = rf, removelast = rl)
             model.save('obj/NNmodel_extrapolate.h5')
             NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(NN, 'NN_extrapolate')   
             
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Nadam', learn_rate = 0.01, dropout = 0.3, lamda1 = np.logspace(-2,1,10)[2], removefirst = rf, removelast = rl)
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[2], removefirst = rf, removelast = rl)
             model.save('obj/PGNNmodel_extrapolate.h5')
             PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(PGNN, 'PGNN_extrapolate')          
@@ -626,19 +638,70 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_2.pdf")
 
     def holdout_networks(load = 0):
-        tf = 0.1
-        if load != 0:
-           X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0)
-        else:
+        
+        if load != 0 :
+            tfs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.10)
+            #grid search svr
             parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
             svr_rbf = SVR(kernel='rbf')
-            clf = GridSearchCV(svr_rbf, parameterz)
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
             opt = clf.fit(X_scaled, y_scaled.reshape(3600))
-            opt.best_params_
-            svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
-            svr_rbf.fit(X_scaled, y_scaled.reshape(3600))
-            lol = scaler_y.inverse_transform(svr_rbf.predict(X_scaled[0:200]).reshape(200,1))
-            plt.plot(lol)
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            for tf in tfs: 
+                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, tf)               
+                cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                
+                svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                
+                svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                error = error**2
+                svr_test_rmse.append(np.mean(error)**0.5)
+                    
+                
+                reg = GradientBoostingRegressor(n_estimators = 2000)
+                reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                reg.fit(X_train, y_train.reshape(len(y_train)))
+                error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                error = error**2
+                reg_test_rmse.append(np.mean(error)**0.5)      
+            
+            
+            NNhist, NNtest_scores = [], []
+            PGNNhist, PGNNtest_scores = [],[]
+            for tf in tfs : 
+                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, tf)
+                
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
+                NNhist.append(hists)
+                NNtest_scores.append(test_scores)
+                
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[2])
+                PGNNhist.append(hists)
+                PGNNtest_scores.append(test_scores)
+                
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNNhist':PGNNhist, 'PGNNtest_scores':PGNNtest_scores}
+            save_obj(to_save, 'HoldoutData')
+        
+        else:
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+
+        
+            
+        
+        
+                    
+
 
 """
 
@@ -775,6 +838,9 @@ fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
 ax.hist(res[0].flatten('F'), bins = 20, density = True)
 ax.hist(res[1].flatten('F'), bins = 20, density = True)
 ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
+hists, model, data, test_scores = NN_train_test(5, 20, 'Adam', learn_rate = 0.001, holdout = 0.5)
+hists2, model2, data2, test_scores2 = NN_train_test(5, 20, 'Adam', learn_rate = 0.001,  lamda1 = 100, holdout = 0.5)
 
 """
 
