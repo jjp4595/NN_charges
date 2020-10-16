@@ -100,7 +100,7 @@ def combined_loss(params):
 
 
 
-def load_data(scaling_input, remove_last, remove_first, test_frac):
+def load_data(scaling_input, remove_last, remove_first, test_frac, remove_largest = None):
     # Load features (Xc) and target values (Y) 
     filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
@@ -143,8 +143,17 @@ def load_data(scaling_input, remove_last, remove_first, test_frac):
     else:
         pass
 
-    #Split data to 90% train & 10% unseen
-    X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, shuffle = True, random_state=32)
+   
+    if remove_largest != None:
+        inds = np.flip(np.argsort(y_og.reshape(3600)))
+        limit = int(len(y_og) * remove_largest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+    else:
+        #Split data 
+        X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, shuffle = True, random_state=32)
+             
+    
     
     return X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og
 
@@ -469,10 +478,7 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
 
             import tensorflow as tf
-            load_model = tf.keras.models.load_model('obj/NNmodel.h5', 
-                                    custom_objects={'loss':combined_loss,
-                                                    'root_mean_squared_error':root_mean_squared_error,
-                                                    }, compile = False)
+            load_model = tf.keras.models.load_model('obj/NNmodel.h5', compile = False)
             
 
             fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
@@ -551,9 +557,7 @@ if __name__ == '__main__':
 
         import tensorflow as tf
         load_model = tf.keras.models.load_model('obj/PGNNmodel.h5', 
-                                custom_objects={'loss':combined_loss,
-                                                'root_mean_squared_error':root_mean_squared_error,
-                                                }, compile = False)
+                                custom_objects={'loss':combined_loss}, compile = False)
         
 
         fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
@@ -568,14 +572,14 @@ if __name__ == '__main__':
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN.pdf")
 
     def extrapolate_networks(load = 0):
-        rf, rl = 4, 
+        rf, rl = 4, 4
         if load != 0:
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removefirst = rf, removelast = rl)
             model.save('obj/NNmodel_extrapolate.h5')
             NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(NN, 'NN_extrapolate')   
             
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[2], removefirst = rf, removelast = rl)
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[6], removefirst = rf, removelast = rl)
             model.save('obj/PGNNmodel_extrapolate.h5')
             PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
             save_obj(PGNN, 'PGNN_extrapolate')          
@@ -584,14 +588,9 @@ if __name__ == '__main__':
             PGNN = load_obj('PGNN_extrapolate')
             
             import tensorflow as tf
-            load_NN = tf.keras.models.load_model('obj/NNmodel_extrapolate.h5', 
-                                                    custom_objects={'loss':combined_loss,
-                                                                    'root_mean_squared_error':root_mean_squared_error,
-                                                                    }, compile = False)
+            load_NN = tf.keras.models.load_model('obj/NNmodel_extrapolate.h5', compile = False)
             load_PGNN = tf.keras.models.load_model('obj/PGNNmodel_extrapolate.h5', 
-                                                    custom_objects={'loss':combined_loss,
-                                                                    'root_mean_squared_error':root_mean_squared_error,
-                                                                    }, compile = False)
+                                                    custom_objects={'loss':combined_loss}, compile = False)
         
             #Dataset plots 1
             X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, remove_last = rl, remove_first = rf, test_frac=0.05)
@@ -637,10 +636,11 @@ if __name__ == '__main__':
             fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_2.pdf")
 
-    def holdout_networks(load = 0):
-        
+    def holdout_networks_uniform(load = 0):
+        tfs = np.arange(0.1,0.9,0.1)
+        tfs = [0.9, 0.95, 0.98]
         if load != 0 :
-            tfs = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+            
             X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.10)
             #grid search svr
             parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
@@ -650,14 +650,16 @@ if __name__ == '__main__':
             
             svr_val_rmse, svr_test_rmse = [],[]
             reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNNhist, PGNNtest_scores = [],[]
             for tf in tfs: 
                 X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, tf)               
+                
                 cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
                 
                 svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
                 svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                 svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                
                 svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
                 error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                 error = error**2
@@ -673,20 +675,15 @@ if __name__ == '__main__':
                 error = error**2
                 reg_test_rmse.append(np.mean(error)**0.5)      
             
-            
-            NNhist, NNtest_scores = [], []
-            PGNNhist, PGNNtest_scores = [],[]
-            for tf in tfs : 
-                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, tf)
-                
                 hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
                 NNhist.append(hists)
                 NNtest_scores.append(test_scores)
-                
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[2])
+    
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[6])
                 PGNNhist.append(hists)
                 PGNNtest_scores.append(test_scores)
-                
+            
+            
             to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
                        'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
@@ -694,13 +691,101 @@ if __name__ == '__main__':
             save_obj(to_save, 'HoldoutData')
         
         else:
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-
-        
+            all_data = load_obj('HoldoutData')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
+            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
             
-        
-        
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], s=10, c='blue', label = 'SVR')
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], s=10, c='red', label = 'GBR')
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], s=10, c='black',label = 'NN')
+            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], s=10, c='green',label = 'PGNN')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            #ax.set_xlim(0,80)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance.pdf")
+            
+    def holdout_networks_nonuniform(load = 0):
+        tfs = np.arange(0.05,0.4,0.05)
+        if load != 0 :
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.10)
+            #grid search svr
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNNhist, PGNNtest_scores = [],[]
+            for tf in tfs: 
+                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.01, remove_largest = tf)               
+                
+                cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                
+                svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                error = error**2
+                svr_test_rmse.append(np.mean(error)**0.5)
                     
+                
+                reg = GradientBoostingRegressor(n_estimators = 2000)
+                reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                reg.fit(X_train, y_train.reshape(len(y_train)))
+                error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                error = error**2
+                reg_test_rmse.append(np.mean(error)**0.5)      
+            
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
+                NNhist.append(hists)
+                NNtest_scores.append(test_scores)
+    
+                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[6])
+                PGNNhist.append(hists)
+                PGNNtest_scores.append(test_scores)
+            
+            
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNNhist':PGNNhist, 'PGNNtest_scores':PGNNtest_scores,
+                       'tfs':tfs}
+            save_obj(to_save, 'HoldoutData_nonuniform')
+        
+        else:
+            all_data = load_obj('HoldoutData_nonuniform')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
+            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
+            
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], s=10, c='blue', label = 'SVR')
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], s=10, c='red', label = 'GBR')
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], s=10, c='black',label = 'NN')
+            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], s=10, c='green',label = 'PGNN')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            #ax.set_xlim(0,80)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance_nonuniform.pdf")        
+          
 
 
 """
@@ -839,8 +924,7 @@ ax.hist(res[0].flatten('F'), bins = 20, density = True)
 ax.hist(res[1].flatten('F'), bins = 20, density = True)
 ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
 
-hists, model, data, test_scores = NN_train_test(5, 20, 'Adam', learn_rate = 0.001, holdout = 0.5)
-hists2, model2, data2, test_scores2 = NN_train_test(5, 20, 'Adam', learn_rate = 0.001,  lamda1 = 100, holdout = 0.5)
+
 
 """
 
