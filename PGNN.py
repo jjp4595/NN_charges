@@ -100,7 +100,7 @@ def combined_loss(params):
 
 
 
-def load_data(scaling_input, remove_last, remove_first, test_frac, remove_largest = None):
+def load_data(scaling_input, remove_last, remove_first, test_frac, remove_every=None, remove_largest = None):
     # Load features (Xc) and target values (Y) 
     filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
@@ -142,7 +142,16 @@ def load_data(scaling_input, remove_last, remove_first, test_frac, remove_larges
         X_scaled, y_scaled = X_scaled[int(200*remove_first)::,:], y_scaled[int(200*remove_first)::,:]
     else:
         pass
-
+    #interpolation
+    if remove_every !=None:
+        inds = np.arange(0,len(X_scaled_og),1)
+        inds = inds.reshape((200,18), order = 'F')
+        inds = inds[:,np.arange(0,18,remove_every)]
+        inds = inds.flatten(order = 'F')
+        X_scaled, y_scaled = X_scaled[inds,:], y_scaled[inds,:]
+    else:
+        pass
+    
    
     if remove_largest != None:
         inds = np.flip(np.argsort(y_og.reshape(3600)))
@@ -199,7 +208,7 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, removefirst = None, removelast = None, holdout = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, removefirst = None, removelast = None, holdout = None, removeevery = None):
      
     #set lamdas=0 for pgnn0
     if lamda1 == None:
@@ -241,8 +250,13 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
         remove_last = 0
     else:
         remove_last = removelast
+        
+    if removeevery == None:
+        remove_every = None
+    else:
+        remove_every = removeevery
     
-    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, remove_last, remove_first, test_frac)
+    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, remove_last, remove_first, test_frac, remove_every = remove_every)
     
     # Creating the model
     model = Sequential()     
@@ -582,10 +596,23 @@ if __name__ == '__main__':
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[6], removefirst = rf, removelast = rl)
             model.save('obj/PGNNmodel_extrapolate.h5')
             PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN_extrapolate')          
+            save_obj(PGNN, 'PGNN_extrapolate')
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, rf,rl, 0.10)
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_train, y_train.reshape(len(y_train)))
+            
+            reg = GradientBoostingRegressor(n_estimators = 2000)
+            reg_fit = reg.fit(X_train, y_train.reshape(len(y_train)))
+            models = {'gbr':reg_fit, 'svr':opt}
+            save_obj(models, 'svr_gbr_extrapolate')
+            
         else:
             NN = load_obj('NN_extrapolate')
             PGNN = load_obj('PGNN_extrapolate')
+            models = load_obj('svr_gbr_extrapolate')
             
             import tensorflow as tf
             load_NN = tf.keras.models.load_model('obj/NNmodel_extrapolate.h5', compile = False)
@@ -600,7 +627,11 @@ if __name__ == '__main__':
                 exp = 200 * i
                 pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
                 pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                theta = np.linspace(0,80,200).reshape(200,1)                
+                pred_svr = models['svr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_gbr = models['gbr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                theta = np.linspace(0,80,200).reshape(200,1)    
+                #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
+                #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
                 fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
@@ -621,7 +652,11 @@ if __name__ == '__main__':
                 exp = 200 * (i+9)
                 pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
                 pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                theta = np.linspace(0,80,200).reshape(200,1)                
+                pred_svr = models['svr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_gbr = models['gbr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                theta = np.linspace(0,80,200).reshape(200,1)   
+                #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
+                #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
                 fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
@@ -635,6 +670,109 @@ if __name__ == '__main__':
             handles, labels = fax[0].get_legend_handles_labels()
             fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_2.pdf")
+            
+            #contour residual plots
+            z = np.linspace(0, 1, 18)
+            theta = np.linspace(0,1,200)
+            [z1, theta1] = np.meshgrid(z,theta)
+            z = z1.flatten('F')
+            z = z.reshape(len(z), 1)
+            theta = theta1.flatten('F')
+            theta = theta.reshape(len(theta), 1)
+            to_pred = np.concatenate((z, theta), axis = 1)
+            pred = scaler_y.inverse_transform(load_NN.predict(to_pred).reshape(len(to_pred),1))
+            pred = pred.reshape(np.shape(z1), order = 'F')
+            res = pred-y_og.reshape(np.shape(pred))
+            
+            fig0, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = 8, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+            #ax.clabel(CS, inline=1, fontsize=10)
+            cbar = fig0.colorbar(CS, format='%.1f')
+            cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+            ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+            ax.set_xlabel('Angle of incidence (degrees)')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1.pdf")
+            
+            pred = scaler_y.inverse_transform(load_PGNN.predict(to_pred).reshape(len(to_pred),1))
+            pred = pred.reshape(np.shape(z1), order = 'F')
+            res = pred-y_og.reshape(np.shape(pred))
+            
+            fig0, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = 8, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+            #ax.clabel(CS, inline=1, fontsize=10)
+            cbar = fig0.colorbar(CS, format='%.1f') 
+            cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+            ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+            ax.set_xlabel('Angle of incidence (degrees)')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2.pdf")
+            
+    def interpolate_networks(load = 0):
+        remove_every = 3
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removeevery = remove_every)
+            model.save('obj/NNmodel_interpolate.h5')
+            NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(NN, 'NN_interpolate')   
+            
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[6], removeevery = remove_every)
+            model.save('obj/PGNNmodel_interpolate.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN_interpolate')
+                        
+        else:
+            NN = load_obj('NN_interpolate')
+            PGNN = load_obj('PGNN_interpolate')
+
+            
+            import tensorflow as tf
+            load_NN = tf.keras.models.load_model('obj/NNmodel_interpolate.h5', compile = False)
+            load_PGNN = tf.keras.models.load_model('obj/PGNNmodel_interpolate.h5', 
+                                                    custom_objects={'loss':combined_loss}, compile = False)
+        
+            #Dataset plots 1
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1,0,0, test_frac=0.05)
+            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
+            fax = ax.ravel()
+            for i in range(0,9):
+                exp = 200 * i
+                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+
+                theta = np.linspace(0,80,200).reshape(200,1)    
+                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
+                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
+                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
+                fax[i].set_xlabel('Theta', fontsize='x-small')
+                fax[i].set_xlim(0,80)
+                fax[i].minorticks_on()
+                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = fax[0].get_legend_handles_labels()
+            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_interpolate_1.pdf")
+            
+            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
+            fax = ax.ravel()            
+            for i in range(0,9):
+                exp = 200 * (i+9)
+                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+                theta = np.linspace(0,80,200).reshape(200,1)   
+                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
+                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
+                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
+                fax[i].set_xlabel('Theta', fontsize='x-small')
+                fax[i].set_xlim(0,80)
+                fax[i].minorticks_on()
+                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = fax[0].get_legend_handles_labels()
+            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_interpolate_2.pdf")
 
     def holdout_networks_uniform(load = 0):
         tfs = np.arange(0.1,0.9,0.1)
