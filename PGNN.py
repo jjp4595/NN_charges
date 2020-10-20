@@ -680,31 +680,66 @@ if __name__ == '__main__':
             theta = theta1.flatten('F')
             theta = theta.reshape(len(theta), 1)
             to_pred = np.concatenate((z, theta), axis = 1)
+            
             pred = scaler_y.inverse_transform(load_NN.predict(to_pred).reshape(len(to_pred),1))
             pred = pred.reshape(np.shape(z1), order = 'F')
-            res = pred-y_og.reshape(np.shape(pred))
+            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
             
-            fig0, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = 8, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,15,10), cmap = plt.cm.magma_r) 
             #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.1f')
+            cbar = fig0.colorbar(CS, format='%.1f', ticks = np.linspace(0,15,6))
             cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-            ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-            ax.set_xlabel('Angle of incidence (degrees)')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1.pdf")
+            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
+            ax.set_ylim(0,0.3)
+            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
+            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1.pdf")
             
             pred = scaler_y.inverse_transform(load_PGNN.predict(to_pred).reshape(len(to_pred),1))
             pred = pred.reshape(np.shape(z1), order = 'F')
-            res = pred-y_og.reshape(np.shape(pred))
+            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
             
-            fig0, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = 8, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,15,10), cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
             #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.1f') 
+            cbar = fig0.colorbar(CS, format='%.1f',ticks = np.linspace(0,15,6)) 
             cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-            ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-            ax.set_xlabel('Angle of incidence (degrees)')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2.pdf")
+            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
+            ax.set_ylim(0,0.3)
+            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
+            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2.pdf")
+            
+            
+            pred = scaler_y.inverse_transform(load_NN.predict(to_pred).reshape(len(to_pred),1))
+            pred = pred.reshape(np.shape(z1), order = 'F')
+            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
+            res = (res/(y_og.reshape(np.shape(pred), order = 'F')))*100
+            
+            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,120,10), cmap = plt.cm.magma_r) 
+            #ax.clabel(CS, inline=1, fontsize=10)
+            cbar = fig0.colorbar(CS, format='%.0f', ticks = np.linspace(0,120,7))
+            cbar.ax.set_ylabel('Percentage error (%)', fontsize = 'x-small')
+            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
+            ax.set_ylim(0,0.3)
+            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
+            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1_pc.pdf")
+            
+            pred = scaler_y.inverse_transform(load_PGNN.predict(to_pred).reshape(len(to_pred),1))
+            pred = pred.reshape(np.shape(z1), order = 'F')
+            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
+            res = (res/(y_og.reshape(np.shape(pred), order = 'F')))*100
+            
+            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
+            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,120,10), cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+            #ax.clabel(CS, inline=1, fontsize=10)
+            cbar = fig0.colorbar(CS, format='%.0f', ticks = np.linspace(0,120,7)) 
+            cbar.ax.set_ylabel('Percentage error (%)', fontsize = 'x-small')
+            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
+            ax.set_ylim(0,0.3)
+            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
+            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2_pc.pdf")
+                        
             
     def interpolate_networks(load = 0):
         remove_every = 3
