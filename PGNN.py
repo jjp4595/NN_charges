@@ -324,6 +324,27 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
 
 
 if __name__ == '__main__':	
+    def datatransformgraphs():
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0, 0, 0.01, remove_every=None, remove_largest = None)
+        #Data transformation
+        fig, [ax, ax1] = plt.subplots(1,2, figsize = (4,2), sharey = True, tight_layout = True)
+        ax.hist(y_og, bins = 25, density = True)
+        ax.set_ylabel("Count (density)")
+        ax.set_xlabel("Y")
+        ax.set_ylim(0,0.6)
+        ax.minorticks_on()
+        #ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        #ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax1.hist(y_scaled, bins = 25, density = True)
+        ax1.set_xlabel("Y")
+        ax1.minorticks_on()
+        ax1.set_ylim(0,0.6)
+        #ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        #ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_datatransform.pdf")
+    
+    
+    
     
     def gridsearch_epoch_bs(load = 0):
         
@@ -346,18 +367,18 @@ if __name__ == '__main__':
             RMSE_10, RMSE_50, RMSE_100 = RMSE_10**0.5, RMSE_50**0.5, RMSE_100**0.5
         
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        ax.scatter(batch_size, RMSE_10.mean(0), s=10, c='blue', label = '10')
+        ax.scatter(batch_size, RMSE_10.mean(0), c = 'blue', marker="s", edgecolor = 'k', s=10, label = '10')
         err = np.stack((RMSE_10.min(0).reshape(1, 6), RMSE_10.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_10.mean(0))
         ax.errorbar(batch_size, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue')
         
         
-        ax.scatter(batch_size, RMSE_50.mean(0), s=10, c='red', label = '50')
+        ax.scatter(batch_size, RMSE_50.mean(0), c = 'red', marker="D", edgecolor = 'k', s=10,  label = '50')
         err = np.stack((RMSE_50.min(0).reshape(1, 6), RMSE_50.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_50.mean(0))
         ax.errorbar(batch_size, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red')
         
-        ax.scatter(batch_size, RMSE_100.mean(0), s=10, c='black', label = '100')
+        ax.scatter(batch_size, RMSE_100.mean(0), c = 'gray', marker="o", edgecolor = 'k', s=10,  label = '100')
         err = np.stack((RMSE_100.min(0).reshape(1, 6), RMSE_100.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_100.mean(0))
         ax.errorbar(batch_size, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black')
@@ -633,7 +654,7 @@ if __name__ == '__main__':
                 #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
                 #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
                 fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'blue', label = 'NN')
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
                 fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
                 fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
@@ -658,7 +679,7 @@ if __name__ == '__main__':
                 #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
                 #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
                 fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
+                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'blue', label = 'NN')
                 fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
                 fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
                 fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
@@ -866,14 +887,15 @@ if __name__ == '__main__':
         else:
             all_data = load_obj('HoldoutData')
             all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
-            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
+            #all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
+            #all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
+            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])
             
             fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], s=10, c='blue', label = 'SVR')
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], s=10, c='red', label = 'GBR')
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], s=10, c='black',label = 'NN')
-            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], s=10, c='green',label = 'PGNN')
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
+            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN')
             ax.set_ylabel('Test RMSE', fontsize='x-small')
             ax.set_xlabel('Holdout data fraction', fontsize='x-small')
             #ax.set_xlim(0,80)
@@ -945,10 +967,10 @@ if __name__ == '__main__':
             all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
             
             fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], s=10, c='blue', label = 'SVR')
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], s=10, c='red', label = 'GBR')
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], s=10, c='black',label = 'NN')
-            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], s=10, c='green',label = 'PGNN')
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
+            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN')
             ax.set_ylabel('Test RMSE', fontsize='x-small')
             ax.set_xlabel('Holdout data fraction', fontsize='x-small')
             #ax.set_xlim(0,80)
