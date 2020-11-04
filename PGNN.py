@@ -100,7 +100,7 @@ def combined_loss(params):
 
 
 
-def load_data(scaling_input, remove_last, remove_first, test_frac, remove_every=None, remove_largest = None):
+def load_data(scaling_input, test_frac = None, remove_mean = None, remove_smallest = None, remove_largest = None):
     # Load features (Xc) and target values (Y) 
     filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
@@ -130,39 +130,31 @@ def load_data(scaling_input, remove_last, remove_first, test_frac, remove_every=
         X_scaled, y_scaled = X, y
         
     X_scaled_og = X_scaled
-    
-    
-    #Testing extrapolation
-    if remove_last != 0:
-        X_scaled, y_scaled = X_scaled[:int(-200*remove_last),:], y_scaled[:int(-200*remove_last),:]
-    else:
-        pass
-    
-    if remove_first != 0:
-        X_scaled, y_scaled = X_scaled[int(200*remove_first)::,:], y_scaled[int(200*remove_first)::,:]
-    else:
-        pass
-    #interpolation
-    if remove_every !=None:
-        inds = np.arange(0,len(X_scaled_og),1)
-        inds = inds.reshape((200,18), order = 'F')
-        inds = inds[:,np.arange(0,18,remove_every)]
-        inds = inds.flatten(order = 'F')
-        X_scaled, y_scaled = X_scaled[inds,:], y_scaled[inds,:]
-    else:
-        pass
-    
    
-    if remove_largest != None:
+
+    if remove_mean != None:
+        limit = int(len(y_og) * remove_mean * 0.5)
+        inds_above_mean = np.where(y_og > y_og.mean())[0][-limit::]
+        inds_below_mean = np.where(y_og < y_og.mean())[0][0:limit]
+        remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
+        X_unseen, y_unseen = X_scaled[remove_inds], y_scaled[remove_inds]
+        X_train, y_train = np.delete(X_scaled, remove_inds), np.delete(y_scaled, remove_inds)
+        
+    elif remove_smallest != None:
+        inds = np.argsort(y_og.reshape(3600))
+        limit = int(len(y_og) * remove_smallest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+        
+    elif remove_largest != None:
         inds = np.flip(np.argsort(y_og.reshape(3600)))
         limit = int(len(y_og) * remove_largest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+        
     else:
         #Split data 
         X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, shuffle = True, random_state=32)
-             
-    
     
     return X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og
 
@@ -208,14 +200,20 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, removefirst = None, removelast = None, holdout = None, removeevery = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, lamda2 = None, test_frac = None, remove_mean = None, remove_smallest = None, remove_largest = None):
      
     #set lamdas=0 for pgnn0
     if lamda1 == None:
         lamda = 0 # Physics-based regularization constant - Z
     else:
         lamda = lamda1
-    lamda2 = 0  #Physics-based regularization constant - theta monotonic
+    
+    if lamda2 == None:
+        lamda2 = 0 
+    else:
+        lamda2 = lamda2  #Physics-based regularization constant - theta monotonic
+ 
+    
     lamda3 = 0 #theta smoothness    
     
     # Hyper-parameters of the training process
@@ -230,33 +228,34 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
         drop_frac = dropout
     n_nodes = 200
     
-    #Data
-    if holdout == None:
-        test_frac = 0.10
-    else:
-        test_frac = holdout
-    
     patience_val = int(0.3 * num_epochs)
-
-    #load data
     scaling_input = 1
     
-    if removefirst == None:
-        remove_first = 0
+    #Data
+    if test_frac == None:
+        testfrac = 0.10
     else:
-        remove_first = removefirst
-            
-    if removelast == None:
-        remove_last = 0
-    else:
-        remove_last = removelast
+        testfrac = test_frac       
         
-    if removeevery == None:
-        remove_every = None
+    if remove_mean == None:
+        removemean = None
     else:
-        remove_every = removeevery
+        removemean = remove_mean
     
-    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, remove_last, remove_first, test_frac, remove_every = remove_every)
+    if remove_smallest == None:
+        removesmallest = None
+    else:
+        removesmallest = remove_smallest
+            
+    if remove_largest == None:
+        removelargest = None
+    else:
+        removelargest = remove_largest
+        
+    remove_largest = None    
+    
+    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, test_frac = testfrac, remove_mean = removemean,
+                                                                                                                         remove_smallest = removesmallest, remove_largest = removelargest)
     
     # Creating the model
     model = Sequential()     
@@ -271,7 +270,7 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
     
     totloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
     
-    if lamda1 == None:
+    if lamda1 == None and lamda2 == None:
         model.compile(loss='mean_squared_error',
                       optimizer=opt_str)
     else:
@@ -288,7 +287,7 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
     kf = KFold(n_splits=4, shuffle = True)
     hist_df, test_scores, datasets = [], [], []
     
-    if lamda1 == None:
+    if lamda1 == None and lamda2 == None:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience_val, verbose=1)
     else:
         early_stopping = EarlyStopping(monitor='val_mean_squared_error', patience=patience_val, verbose=1)
@@ -530,10 +529,10 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_NN.pdf")
 
 
-    def gridsearch_lamda(load=0):
+    def gridsearch_lamda1(load=0):
         
         #Grid search batch size and num epochs
-        lamda = np.logspace(-2,1,10)
+        lamda = np.logspace(-2,2,10)
         if load != 0:
             score_RMSE, histories = [],[]
             for i in lamda:
@@ -542,36 +541,71 @@ if __name__ == '__main__':
                     histories.append(hists)
             all_info = {'RMSE':score_RMSE, 'History':histories}
             
-            save_obj(all_info, 'PCNN_lamda1')
+            save_obj(all_info, 'PGNN_1_lamda')
         else:
-            score_RMSE = load_obj('PCNN_lamda1')
+            score_RMSE = load_obj('PGNN_1_lamda')
             RMSE = score_RMSE['RMSE']
             RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))] 
             score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
         
             
-        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
-        err = abs(err - score.mean().values)
-        ax.scatter(lamda, score.mean(), s=10, c='k')
-        ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
-        ax.set_xscale('log')
-        #ax.set_ylim(0,0.25)
-        ax.minorticks_on()
-        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-        ax.set_xlabel('Lambda')
-        ax.set_ylabel('Test RMSE')
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN.pdf")
-
-    def PGNNperformance(load = 1):
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
+            err = abs(err - score.mean().values)
+            ax.scatter(lamda, score.mean(), s=10, c='k')
+            ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+            ax.set_xscale('log')
+            #ax.set_ylim(0,0.25)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            ax.set_xlabel('Lambda')
+            ax.set_ylabel('Test RMSE')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_1.pdf")
+        
+    def gridsearch_lamda2(load=0):
+        
+        #Grid search batch size and num epochs
+        lamda = np.logspace(-2,2,10)
         if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[2])
-            model.save('obj/PGNNmodel.h5')
-            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN')  
+            score_RMSE, histories = [],[]
+            for i in lamda:
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = i)
+                    score_RMSE.append(test_scores)
+                    histories.append(hists)
+            all_info = {'RMSE':score_RMSE, 'History':histories}
+            
+            save_obj(all_info, 'PGNN_2_lamda')
         else:
-            PGNN = load_obj('PGNN')
+            score_RMSE = load_obj('PGNN_2_lamda')
+            RMSE = score_RMSE['RMSE']
+            RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))]
+            score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
+        
+            
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
+            err = abs(err - score.mean().values)
+            ax.scatter(lamda, score.mean(), s=10, c='k')
+            ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
+            ax.set_xscale('log')
+            #ax.set_ylim(0,0.25)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            ax.set_xlabel('Lambda')
+            ax.set_ylabel('Test RMSE')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_2.pdf")
+        
+
+    def PGNN1performance(load = 1):
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,2,10)[2])
+            model.save('obj/PGNN_1_model.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN_1')  
+        else:
+            PGNN = load_obj('PGNN_1')
         
         fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
         fax = ax.ravel()
@@ -588,10 +622,10 @@ if __name__ == '__main__':
                 fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
             else:
                 pass
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN.pdf")
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_1.pdf")
 
         import tensorflow as tf
-        load_model = tf.keras.models.load_model('obj/PGNNmodel.h5', 
+        load_model = tf.keras.models.load_model('obj/PGNN_1_model.h5', 
                                 custom_objects={'loss':combined_loss}, compile = False)
         
 
@@ -604,9 +638,279 @@ if __name__ == '__main__':
         ax.minorticks_on()
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN.pdf")
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_1.pdf")
+        
+    def PGNN2performance(load = 1):
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda2 = np.logspace(-2,2,10)[2])
+            model.save('obj/PGNN_2_model.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN_2')  
+        else:
+            PGNN = load_obj('PGNN_2')
+        
+        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+        fax = ax.ravel()
+        for i in range(0,len(PGNN['hist'])):
+            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
+            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
+            fax[i].minorticks_on()
+            fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            fax[i].set_xlabel('Epoch')
+            fax[i].set_ylabel('Loss')  
+            if i == 0:                    
+                handles, labels = fax[i].get_legend_handles_labels()
+                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+            else:
+                pass
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_2.pdf")
 
-    def extrapolate_networks(load = 0):
+        import tensorflow as tf
+        load_model = tf.keras.models.load_model('obj/PGNN_2_model.h5', 
+                                custom_objects={'loss':combined_loss}, compile = False)
+        
+
+        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
+        text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
+        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_2.pdf")
+ 
+
+
+    def remove_random(load = 0):
+        tfs = np.arange(0.1,1,0.1)
+        if load != 0 :
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.01)
+            #grid search svr
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNN_1_hist, PGNN_1_test_scores = [],[]
+            PGNN_2_hist, PGNN_2_test_scores = [],[]
+            for tf in tfs: 
+                try:
+                    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = tf)               
+                    
+                    cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                    
+                    svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                    svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    svr_test_rmse.append(np.mean(error)**0.5)
+                        
+                    
+                    reg = GradientBoostingRegressor(n_estimators = 2000)
+                    reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                    reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                    reg.fit(X_train, y_train.reshape(len(y_train)))
+                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    reg_test_rmse.append(np.mean(error)**0.5)      
+                
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
+                    NNhist.append(hists)
+                    NNtest_scores.append(test_scores)
+        
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2])
+                    PGNN_1_hist.append(hists)
+                    PGNN_1_test_scores.append(test_scores)
+                    
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2])
+                    PGNN_2_hist.append(hists)
+                    PGNN_2_test_scores.append(test_scores)
+                except:
+                    pass
+            
+            
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
+                       'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'tfs':tfs}
+            save_obj(to_save, 'removeRandomData')
+        
+        else:
+            all_data = load_obj('removeRandomData')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
+            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
+            
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
+            ax.scatter(all_data['tfs'], all_data['PGNN_1_test_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1')
+            ax.scatter(all_data['tfs'], all_data['PGNN_2_test_scores'][:,-2], c = 'yellow', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            #ax.set_xlim(0,80)
+            ax.minorticks_on()
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random.pdf")
+            
+ 
+          
+
+
+"""
+
+if plotting != 0:
+    
+
+    
+    
+    
+    #validation against completely unseen data
+    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_highZ.csv"
+    val_highZ = pd.read_csv(fn_val_highZ, header = None)
+    val_highZ = val_highZ.values
+    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_lowZ.csv"
+    val_lowZ = pd.read_csv(fn_val_lowZ, header = None)
+    val_lowZ = val_lowZ.values
+    
+    # split into input (X) and output (Y) variables
+    X_val_highZ = val_highZ[:,[2,3]]
+    y_val_highZ = val_highZ[:,4]/1000/(250**(1/3))
+    y_val_highZ = y_val_highZ.reshape(len(y_val_highZ),1)
+    # split into input (X) and output (Y) variables
+    X_val_lowZ = val_lowZ[:,[2,3]]
+    y_val_lowZ = val_lowZ[:,4]/1000/(5**(1/3))
+    y_val_lowZ = y_val_lowZ.reshape(len(y_val_lowZ),1)
+    
+    
+    if scaling_input == 1:
+        X_val_highZ = scaler_x.transform(X_val_highZ)
+        X_val_lowZ = scaler_x.transform(X_val_lowZ)
+    else:
+        pass
+    
+    fig, [ax, ax1] = plt.subplots(1,2, figsize = (6,3))
+    ax.plot(theta, y_val_lowZ, 'k', label = 'CFD')
+    ax.plot(theta, scaler_y.inverse_transform(model.predict(X_val_lowZ).reshape(200,1)), 'r', label = 'model')   
+    ax.set_title("Z = 0.17 m/kg^{1/3}")
+    ax.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
+    ax.set_xlabel('theta', fontsize='x-small')
+    ax.set_xlim(0,80)
+    ax.minorticks_on()
+    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+    
+    ax1.plot(theta, y_val_highZ, 'k', label = 'CFD')
+    ax1.plot(theta, scaler_y.inverse_transform(model.predict(X_val_highZ).reshape(200,1)), 'r', label = 'model')   
+    ax1.set_title("Z = 0.40 m/kg^{1/3}")
+    ax1.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
+    ax1.set_xlabel('theta', fontsize='x-small')
+    ax1.set_xlim(0,80)
+    ax1.minorticks_on()
+    ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+    ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+    plt.tight_layout()    
+    
+    #peak I vs Z
+    fig, ax = plt.subplots(2, 3, figsize=(8,6))
+    fax = ax.ravel()
+    angles = [0, 20, 30, 40, 60, 80]
+    for i in range(len(angles)):
+        n = 50 #resolution of predictions
+        sampleZ = np.linspace(0, 1, n).reshape(n,1)
+        if angles[i] == 0:
+            idtheta = 0
+            
+        elif angles[i] == 80:
+            idtheta = 199
+        else:
+            idtheta = np.where(np.linspace(0,80,200) > angles[i])[0][0]
+        sampleZ = np.concatenate((sampleZ, np.zeros((n , 1)) + X_scaled_og[idtheta,1]), axis = 1) 
+        
+        fax[i].plot(sampleZ[:,0], 
+                    scaler_y.inverse_transform(model.predict(sampleZ).reshape(len(sampleZ),1)),
+                    'k', label='NN')
+        fax[i].scatter(X_scaled_og[np.where(X[:,1]==X[idtheta,1]),0], y_og[np.where(X[:,1]==X[idtheta,1]),0], marker = 's',facecolors = 'white', edgecolors='k', s = 10., label = 'CFD data')
+        fax[i].minorticks_on()
+        fax[i].grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
+        fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        fax[i].set_title(str(angles[i]) + "degrees")
+        fax[i].set_xlabel("Normalised Z")
+        fax[i].set_ylabel("specific impulse (MPa.ms)")                 
+        plt.tight_layout()
+
+#Exploratory Contour plot
+z = np.linspace(X.min(0)[0], X.max(0)[0], 200)
+theta = np.linspace(0,80,200)
+[z1, theta1] = np.meshgrid(z,theta)
+z = z1.flatten('F')
+z = z.reshape(len(z), 1)
+theta = theta1.flatten('F')
+theta = theta.reshape(len(theta), 1)
+to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
+pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
+pred = pred.reshape(np.shape(z1), order = 'F')
+fig0, ax = plt.subplots(1,1, figsize=(5,5))
+CS = ax.contourf(theta1, z1, pred, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+#ax.clabel(CS, inline=1, fontsize=10)
+cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
+cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+ax.set_xlabel('Angle of incidence (degrees)')
+plt.tight_layout()
+
+
+#Comparison Contour 
+z = np.linspace(X.min(0)[0], X.max(0)[0], 18)
+theta = np.linspace(0,80,200)
+[z1, theta1] = np.meshgrid(z,theta)
+z = z1.flatten('F')
+z = z.reshape(len(z), 1)
+theta = theta1.flatten('F')
+theta = theta.reshape(len(theta), 1)
+to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
+pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
+pred = pred.reshape(np.shape(z1), order = 'F')
+residuals = pred-y.reshape(np.shape(pred))
+                           
+fig0, ax = plt.subplots(1,1, figsize=(5,5))
+CS = ax.contourf(theta1, z1, residuals, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
+#ax.clabel(CS, inline=1, fontsize=10)
+cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
+cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+ax.set_xlabel('Angle of incidence (degrees)')
+plt.tight_layout()
+
+#Histogram of residuals
+fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
+ax.hist(residuals.flatten('F'), bins = 20, density = True)
+ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
+#Histogram of residuals
+fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
+ax.hist(res[0].flatten('F'), bins = 20, density = True)
+ax.hist(res[1].flatten('F'), bins = 20, density = True)
+ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
+
+    def extrapolate_networks_downwards(load = 0):
         rf, rl = 4, 4
         if load != 0:
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removefirst = rf, removelast = rl)
@@ -760,9 +1064,9 @@ if __name__ == '__main__':
             ax.set_ylim(0,0.3)
             ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
             fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2_pc.pdf")
-                        
             
-    def interpolate_networks(load = 0):
+            
+        def interpolate_networks(load = 0):
         remove_every = 3
         if load != 0:
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removeevery = remove_every)
@@ -830,83 +1134,7 @@ if __name__ == '__main__':
             fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_interpolate_2.pdf")
 
-    def holdout_networks_uniform(load = 0):
-        tfs = np.arange(0.1,0.9,0.1)
-        tfs = [0.9, 0.95, 0.98]
-        if load != 0 :
-            
-            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.10)
-            #grid search svr
-            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
-            svr_rbf = SVR(kernel='rbf')
-            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
-            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
-            
-            svr_val_rmse, svr_test_rmse = [],[]
-            reg_val_rmse, reg_test_rmse = [],[]
-            NNhist, NNtest_scores = [], []
-            PGNNhist, PGNNtest_scores = [],[]
-            for tf in tfs: 
-                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, tf)               
-                
-                cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
-                
-                svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
-                svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
-                svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
-                error = error**2
-                svr_test_rmse.append(np.mean(error)**0.5)
-                    
-                
-                reg = GradientBoostingRegressor(n_estimators = 2000)
-                reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
-                reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
-                reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                reg.fit(X_train, y_train.reshape(len(y_train)))
-                error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
-                error = error**2
-                reg_test_rmse.append(np.mean(error)**0.5)      
-            
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
-                NNhist.append(hists)
-                NNtest_scores.append(test_scores)
-    
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[6])
-                PGNNhist.append(hists)
-                PGNNtest_scores.append(test_scores)
-            
-            
-            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
-                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
-                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
-                       'PGNNhist':PGNNhist, 'PGNNtest_scores':PGNNtest_scores}
-            save_obj(to_save, 'HoldoutData')
-        
-        else:
-            all_data = load_obj('HoldoutData')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            #all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
-            #all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
-            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])
-            
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
-            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            #ax.set_xlim(0,80)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance.pdf")
-            
-    def holdout_networks_nonuniform(load = 0):
+            def remove_largest(load = 0):
         tfs = np.arange(0.05,0.4,0.05)
         if load != 0 :
             
@@ -979,147 +1207,19 @@ if __name__ == '__main__':
             ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
             handles, labels = ax.get_legend_handles_labels()
             ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance_nonuniform.pdf")        
-          
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance_nonuniform.pdf")       
 
-
-"""
-
-if plotting != 0:
+    # #Testing extrapolation
+    # if remove_last != 0:
+    #     X_scaled, y_scaled = X_scaled[:int(-200*remove_last),:], y_scaled[:int(-200*remove_last),:]
+    # else:
+    #     pass
     
-
+    # if remove_first != 0:
+    #     X_scaled, y_scaled = X_scaled[int(200*remove_first)::,:], y_scaled[int(200*remove_first)::,:]
+    # else:
+    #     pass
     
-    
-    
-    #validation against completely unseen data
-    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_highZ.csv"
-    val_highZ = pd.read_csv(fn_val_highZ, header = None)
-    val_highZ = val_highZ.values
-    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_lowZ.csv"
-    val_lowZ = pd.read_csv(fn_val_lowZ, header = None)
-    val_lowZ = val_lowZ.values
-    
-    # split into input (X) and output (Y) variables
-    X_val_highZ = val_highZ[:,[2,3]]
-    y_val_highZ = val_highZ[:,4]/1000/(250**(1/3))
-    y_val_highZ = y_val_highZ.reshape(len(y_val_highZ),1)
-    # split into input (X) and output (Y) variables
-    X_val_lowZ = val_lowZ[:,[2,3]]
-    y_val_lowZ = val_lowZ[:,4]/1000/(5**(1/3))
-    y_val_lowZ = y_val_lowZ.reshape(len(y_val_lowZ),1)
-    
-    
-    if scaling_input == 1:
-        X_val_highZ = scaler_x.transform(X_val_highZ)
-        X_val_lowZ = scaler_x.transform(X_val_lowZ)
-    else:
-        pass
-    
-    fig, [ax, ax1] = plt.subplots(1,2, figsize = (6,3))
-    ax.plot(theta, y_val_lowZ, 'k', label = 'CFD')
-    ax.plot(theta, scaler_y.inverse_transform(model.predict(X_val_lowZ).reshape(200,1)), 'r', label = 'model')   
-    ax.set_title("Z = 0.17 m/kg^{1/3}")
-    ax.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-    ax.set_xlabel('theta', fontsize='x-small')
-    ax.set_xlim(0,80)
-    ax.minorticks_on()
-    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    
-    ax1.plot(theta, y_val_highZ, 'k', label = 'CFD')
-    ax1.plot(theta, scaler_y.inverse_transform(model.predict(X_val_highZ).reshape(200,1)), 'r', label = 'model')   
-    ax1.set_title("Z = 0.40 m/kg^{1/3}")
-    ax1.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-    ax1.set_xlabel('theta', fontsize='x-small')
-    ax1.set_xlim(0,80)
-    ax1.minorticks_on()
-    ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    plt.tight_layout()    
-    
-    #peak I vs Z
-    fig, ax = plt.subplots(2, 3, figsize=(8,6))
-    fax = ax.ravel()
-    angles = [0, 20, 30, 40, 60, 80]
-    for i in range(len(angles)):
-        n = 50 #resolution of predictions
-        sampleZ = np.linspace(0, 1, n).reshape(n,1)
-        if angles[i] == 0:
-            idtheta = 0
-            
-        elif angles[i] == 80:
-            idtheta = 199
-        else:
-            idtheta = np.where(np.linspace(0,80,200) > angles[i])[0][0]
-        sampleZ = np.concatenate((sampleZ, np.zeros((n , 1)) + X_scaled_og[idtheta,1]), axis = 1) 
-        
-        fax[i].plot(sampleZ[:,0], 
-                    scaler_y.inverse_transform(model.predict(sampleZ).reshape(len(sampleZ),1)),
-                    'k', label='NN')
-        fax[i].scatter(X_scaled_og[np.where(X[:,1]==X[idtheta,1]),0], y_og[np.where(X[:,1]==X[idtheta,1]),0], marker = 's',facecolors = 'white', edgecolors='k', s = 10., label = 'CFD data')
-        fax[i].minorticks_on()
-        fax[i].grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
-        fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        fax[i].set_title(str(angles[i]) + "degrees")
-        fax[i].set_xlabel("Normalised Z")
-        fax[i].set_ylabel("specific impulse (MPa.ms)")                 
-        plt.tight_layout()
-
-#Exploratory Contour plot
-z = np.linspace(X.min(0)[0], X.max(0)[0], 200)
-theta = np.linspace(0,80,200)
-[z1, theta1] = np.meshgrid(z,theta)
-z = z1.flatten('F')
-z = z.reshape(len(z), 1)
-theta = theta1.flatten('F')
-theta = theta.reshape(len(theta), 1)
-to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
-pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
-pred = pred.reshape(np.shape(z1), order = 'F')
-fig0, ax = plt.subplots(1,1, figsize=(5,5))
-CS = ax.contourf(theta1, z1, pred, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-#ax.clabel(CS, inline=1, fontsize=10)
-cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
-cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-ax.set_xlabel('Angle of incidence (degrees)')
-plt.tight_layout()
-
-
-#Comparison Contour 
-z = np.linspace(X.min(0)[0], X.max(0)[0], 18)
-theta = np.linspace(0,80,200)
-[z1, theta1] = np.meshgrid(z,theta)
-z = z1.flatten('F')
-z = z.reshape(len(z), 1)
-theta = theta1.flatten('F')
-theta = theta.reshape(len(theta), 1)
-to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
-pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
-pred = pred.reshape(np.shape(z1), order = 'F')
-residuals = pred-y.reshape(np.shape(pred))
-                           
-fig0, ax = plt.subplots(1,1, figsize=(5,5))
-CS = ax.contourf(theta1, z1, residuals, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-#ax.clabel(CS, inline=1, fontsize=10)
-cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
-cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-ax.set_xlabel('Angle of incidence (degrees)')
-plt.tight_layout()
-
-#Histogram of residuals
-fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
-ax.hist(residuals.flatten('F'), bins = 20, density = True)
-ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
-
-#Histogram of residuals
-fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
-ax.hist(res[0].flatten('F'), bins = 20, density = True)
-ax.hist(res[1].flatten('F'), bins = 20, density = True)
-ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
-
-
 
 """
 
