@@ -138,7 +138,7 @@ def load_data(scaling_input, test_frac = None, remove_mean = None, remove_smalle
         inds_below_mean = np.where(y_og < y_og.mean())[0][0:limit]
         remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
         X_unseen, y_unseen = X_scaled[remove_inds], y_scaled[remove_inds]
-        X_train, y_train = np.delete(X_scaled, remove_inds), np.delete(y_scaled, remove_inds)
+        X_train, y_train = np.delete(X_scaled, remove_inds, 0),  np.delete(y_scaled, remove_inds)
         
     elif remove_smallest != None:
         inds = np.argsort(y_og.reshape(3600))
@@ -366,29 +366,29 @@ if __name__ == '__main__':
             RMSE_10, RMSE_50, RMSE_100 = RMSE_10**0.5, RMSE_50**0.5, RMSE_100**0.5
         
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        ax.scatter(batch_size, RMSE_10.mean(0), c = 'blue', marker="s", edgecolor = 'k', s=10, label = '10')
+        ax.scatter(batch_size, RMSE_10.mean(0), c = 'blue', marker="s", edgecolor = 'k', s=10, label = '10', zorder=20)
         err = np.stack((RMSE_10.min(0).reshape(1, 6), RMSE_10.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_10.mean(0))
-        ax.errorbar(batch_size, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue')
+        ax.errorbar(batch_size, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue', zorder=10)
         
         
-        ax.scatter(batch_size, RMSE_50.mean(0), c = 'red', marker="D", edgecolor = 'k', s=10,  label = '50')
+        ax.scatter(batch_size, RMSE_50.mean(0), c = 'red', marker="D", edgecolor = 'k', s=10,  label = '50', zorder=20)
         err = np.stack((RMSE_50.min(0).reshape(1, 6), RMSE_50.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_50.mean(0))
-        ax.errorbar(batch_size, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red')
+        ax.errorbar(batch_size, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red', zorder=10)
         
-        ax.scatter(batch_size, RMSE_100.mean(0), c = 'gray', marker="o", edgecolor = 'k', s=10,  label = '100')
+        ax.scatter(batch_size, RMSE_100.mean(0), c = 'gray', marker="o", edgecolor = 'k', s=10,  label = '100', zorder=20)
         err = np.stack((RMSE_100.min(0).reshape(1, 6), RMSE_100.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_100.mean(0))
-        ax.errorbar(batch_size, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black')
+        ax.errorbar(batch_size, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black', zorder=10)
         
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, title = 'No. epochs', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
         ax.minorticks_on()
         ax.set_xlim(0,120)
         ax.set_ylim(0,0.2)
-        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0) 
         ax.set_xlabel('Batch Size')
         ax.set_ylabel('Test RMSE')
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_epoch_batchsize_NN.pdf")
@@ -724,15 +724,15 @@ if __name__ == '__main__':
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, test_frac = tf)
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
         
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2])
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], test_frac = tf)
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2])
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], test_frac = tf)
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
                 except:
@@ -753,25 +753,364 @@ if __name__ == '__main__':
             all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
             all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
             
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
-            ax.scatter(all_data['tfs'], all_data['PGNN_1_test_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1')
-            ax.scatter(all_data['tfs'], all_data['PGNN_2_test_scores'][:,-2], c = 'yellow', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2')
+            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
+            
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
+            
+            #NN
+            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
+                      
+            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
+            #PGNN_1
+            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
+             
+            #PGNN_2
+            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
+            
+            
+            ax.set_yscale('log')
             ax.set_ylabel('Test RMSE', fontsize='x-small')
             ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            #ax.set_xlim(0,80)
+            ax.set_xlim(0,1)
+            ax.set_ylim(10**-4, 10**-1)
             ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
+   
             handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random.pdf")
             
- 
+    def remove_mean(load = 0):
+        tfs = np.arange(0.1,1,0.1)
+        if load != 0 :
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.01)
+            #grid search svr
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNN_1_hist, PGNN_1_test_scores = [],[]
+            PGNN_2_hist, PGNN_2_test_scores = [],[]
+            for tf in tfs: 
+                try:
+                    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = tf)               
+                    
+                    cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                    
+                    svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                    svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    svr_test_rmse.append(np.mean(error)**0.5)
+                        
+                    
+                    reg = GradientBoostingRegressor(n_estimators = 2000)
+                    reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                    reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                    reg.fit(X_train, y_train.reshape(len(y_train)))
+                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    reg_test_rmse.append(np.mean(error)**0.5)      
+                
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_mean = tf)
+                    NNhist.append(hists)
+                    NNtest_scores.append(test_scores)
+        
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_mean = tf)
+                    PGNN_1_hist.append(hists)
+                    PGNN_1_test_scores.append(test_scores)
+                    
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_mean = tf)
+                    PGNN_2_hist.append(hists)
+                    PGNN_2_test_scores.append(test_scores)
+                except:
+                    pass
+            
+            
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
+                       'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'tfs':tfs}
+            save_obj(to_save, 'removeMeanData')
+        
+        else:
+            all_data = load_obj('removeMeanData')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
+            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
+            
+            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
+            
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
+            
+            #NN
+            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
+                      
+            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
+            #PGNN_1
+            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
+             
+            #PGNN_2
+            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
+            
+            
+            ax.set_yscale('log')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            ax.set_xlim(0,1)
+            #ax.set_ylim(10**-4, 10**-1)
+            ax.minorticks_on()
+   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean.pdf")
+            
+    def remove_smallest(load = 0):
+        tfs = np.arange(0.1,1,0.1)
+        if load != 0 :
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.01)
+            #grid search svr
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNN_1_hist, PGNN_1_test_scores = [],[]
+            PGNN_2_hist, PGNN_2_test_scores = [],[]
+            for tf in tfs: 
+                try:
+                    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = tf)               
+                    
+                    cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                    
+                    svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                    svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    svr_test_rmse.append(np.mean(error)**0.5)
+                        
+                    
+                    reg = GradientBoostingRegressor(n_estimators = 2000)
+                    reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                    reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                    reg.fit(X_train, y_train.reshape(len(y_train)))
+                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    reg_test_rmse.append(np.mean(error)**0.5)      
+                
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_smallest = tf)
+                    NNhist.append(hists)
+                    NNtest_scores.append(test_scores)
+        
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_smallest = tf)
+                    PGNN_1_hist.append(hists)
+                    PGNN_1_test_scores.append(test_scores)
+                    
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_smallest = tf)
+                    PGNN_2_hist.append(hists)
+                    PGNN_2_test_scores.append(test_scores)
+                except:
+                    pass
+            
+            
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
+                       'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'tfs':tfs}
+            save_obj(to_save, 'removeSmallestData')
+        
+        else:
+            all_data = load_obj('removeSmallestData')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
+            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
+            
+            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
+            
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
+            
+            #NN
+            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
+                      
+            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
+            #PGNN_1
+            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
+             
+            #PGNN_2
+            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
+            
+            
+            ax.set_yscale('log')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            ax.set_xlim(0,1)
+            #ax.set_ylim(10**-4, 10**-1)
+            ax.minorticks_on()
+   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest.pdf")
           
-
+    def remove_largest(load = 0):
+        tfs = np.arange(0.1,1,0.1)
+        if load != 0 :
+            
+            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.01)
+            #grid search svr
+            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+            svr_rbf = SVR(kernel='rbf')
+            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
+            
+            svr_val_rmse, svr_test_rmse = [],[]
+            reg_val_rmse, reg_test_rmse = [],[]
+            NNhist, NNtest_scores = [], []
+            PGNN_1_hist, PGNN_1_test_scores = [],[]
+            PGNN_2_hist, PGNN_2_test_scores = [],[]
+            for tf in tfs: 
+                try:
+                    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = tf)               
+                    
+                    cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+                    
+                    svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+                    svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
+                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    svr_test_rmse.append(np.mean(error)**0.5)
+                        
+                    
+                    reg = GradientBoostingRegressor(n_estimators = 2000)
+                    reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+                    reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
+                    reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
+                    reg.fit(X_train, y_train.reshape(len(y_train)))
+                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    error = error**2
+                    reg_test_rmse.append(np.mean(error)**0.5)      
+                
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_largest = tf)
+                    NNhist.append(hists)
+                    NNtest_scores.append(test_scores)
+        
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_largest = tf)
+                    PGNN_1_hist.append(hists)
+                    PGNN_1_test_scores.append(test_scores)
+                    
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_largest = tf)
+                    PGNN_2_hist.append(hists)
+                    PGNN_2_test_scores.append(test_scores)
+                except:
+                    pass
+            
+            
+            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
+                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
+                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
+                       'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
+                       'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'tfs':tfs}
+            save_obj(to_save, 'removeLargestData')
+        
+        else:
+            all_data = load_obj('removeLargestData')
+            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
+            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
+            
+            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
+            
+            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
+            
+            #NN
+            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
+            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
+                      
+            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
+            #PGNN_1
+            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
+             
+            #PGNN_2
+            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
+            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
+            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
+            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
+            
+            
+            ax.set_yscale('log')
+            ax.set_ylabel('Test RMSE', fontsize='x-small')
+            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+            ax.set_xlim(0,1)
+            #ax.set_ylim(10**-4, 10**-1)
+            ax.minorticks_on()
+   
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest.pdf")
 
 """
 
