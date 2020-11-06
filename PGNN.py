@@ -681,8 +681,52 @@ if __name__ == '__main__':
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_2.pdf")
- 
 
+    
+    def stress_testing_graphs():
+        nbins = 25
+        fs = (2.5, 2.5)
+        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, density = False, label = 'Entire dataset')
+        ax.hist(y_train, bins = nbins, alpha = 0.5, density = False, color = 'red', label = 'Reduced dataset')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, 250)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_random.pdf")
+        
+        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, density = False, label = 'Entire dataset')
+        ax.hist(y_train, bins = nbins, alpha = 0.5, density = False, color = 'red', label = 'Reduced dataset')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, 250)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_mean.pdf")
+        
+        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, density = False, label = 'Entire dataset')
+        ax.hist(y_train, bins = nbins, alpha = 0.5, density = False, color = 'red', label = 'Reduced dataset')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, 250)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_smallest.pdf")
+        
+        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, density = False, label = 'Entire dataset')
+        ax.hist(y_train, bins = nbins, alpha = 0.5, density = False, color = 'red', label = 'Reduced dataset')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, 250)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_largest.pdf")
 
     def remove_random(load = 0):
         tfs = np.arange(0.1,1,0.1)
@@ -695,6 +739,7 @@ if __name__ == '__main__':
             clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
             opt = clf.fit(X_scaled, y_scaled.reshape(3600))
             
+            svrModels, gbrModels = [], []
             svr_val_rmse, svr_test_rmse = [],[]
             reg_val_rmse, reg_test_rmse = [],[]
             NNhist, NNtest_scores = [], []
@@ -709,8 +754,9 @@ if __name__ == '__main__':
                     svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
                     svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    svrModel = svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    svrModels.append(svrModel)
+                    error = svrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
@@ -719,20 +765,24 @@ if __name__ == '__main__':
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
                     reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                    reg.fit(X_train, y_train.reshape(len(y_train)))
-                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    gbrModel = reg.fit(X_train, y_train.reshape(len(y_train)))
+                    gbrModels.append(gbrModel)
+                    error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, test_frac = tf)
+                    model.save('obj/remove_random/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
         
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], test_frac = tf)
+                    model.save('obj/remove_random/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], test_frac = tf)
+                    model.save('obj/remove_random/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
                 except:
@@ -744,7 +794,8 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
-                       'tfs':tfs}
+                       'tfs':tfs, 
+                       'svrModels': svrModels, 'gbrModels':gbrModels}
             save_obj(to_save, 'removeRandomData')
         
         else:
@@ -784,7 +835,7 @@ if __name__ == '__main__':
             ax.set_ylabel('Test RMSE', fontsize='x-small')
             ax.set_xlabel('Holdout data fraction', fontsize='x-small')
             ax.set_xlim(0,1)
-            ax.set_ylim(10**-4, 10**-1)
+            ax.set_ylim(8*10**-4, 10**-1)
             ax.minorticks_on()
    
             handles, labels = ax.get_legend_handles_labels()
@@ -802,6 +853,7 @@ if __name__ == '__main__':
             clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
             opt = clf.fit(X_scaled, y_scaled.reshape(3600))
             
+            svrModels, gbrModels = [], []
             svr_val_rmse, svr_test_rmse = [],[]
             reg_val_rmse, reg_test_rmse = [],[]
             NNhist, NNtest_scores = [], []
@@ -816,8 +868,9 @@ if __name__ == '__main__':
                     svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
                     svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    svrModel = svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    svrModels.append(svrModel)
+                    error = svrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
@@ -826,20 +879,24 @@ if __name__ == '__main__':
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
                     reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                    reg.fit(X_train, y_train.reshape(len(y_train)))
-                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    gbrModel = reg.fit(X_train, y_train.reshape(len(y_train)))
+                    gbrModels.append(gbrModel)
+                    error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_mean = tf)
+                    model.save('obj/remove_mean/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
         
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_mean = tf)
+                    model.save('obj/remove_mean/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_mean = tf)
+                    model.save('obj/remove_mean/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
                 except:
@@ -851,7 +908,8 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
-                       'tfs':tfs}
+                       'tfs':tfs,
+                       'svrModels': svrModels, 'gbrModels':gbrModels}
             save_obj(to_save, 'removeMeanData')
         
         else:
@@ -894,8 +952,7 @@ if __name__ == '__main__':
             #ax.set_ylim(10**-4, 10**-1)
             ax.minorticks_on()
    
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean.pdf")
             
     def remove_smallest(load = 0):
@@ -909,6 +966,7 @@ if __name__ == '__main__':
             clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
             opt = clf.fit(X_scaled, y_scaled.reshape(3600))
             
+            svrModels, gbrModels = [], []
             svr_val_rmse, svr_test_rmse = [],[]
             reg_val_rmse, reg_test_rmse = [],[]
             NNhist, NNtest_scores = [], []
@@ -923,8 +981,9 @@ if __name__ == '__main__':
                     svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
                     svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    svrModel = svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    svrModels.append(svrModel)
+                    error = svrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
@@ -933,20 +992,24 @@ if __name__ == '__main__':
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
                     reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                    reg.fit(X_train, y_train.reshape(len(y_train)))
-                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    gbrModel = reg.fit(X_train, y_train.reshape(len(y_train)))
+                    gbrModels.append(gbrModel)
+                    error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_smallest = tf)
+                    model.save('obj/remove_smallest/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
         
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_smallest = tf)
+                    model.save('obj/remove_smallest/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_smallest = tf)
+                    model.save('obj/remove_smallest/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
                 except:
@@ -958,7 +1021,8 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
-                       'tfs':tfs}
+                       'tfs':tfs,
+                       'svrModels': svrModels, 'gbrModels':gbrModels}
             save_obj(to_save, 'removeSmallestData')
         
         else:
@@ -1001,8 +1065,7 @@ if __name__ == '__main__':
             #ax.set_ylim(10**-4, 10**-1)
             ax.minorticks_on()
    
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest.pdf")
           
     def remove_largest(load = 0):
@@ -1016,6 +1079,7 @@ if __name__ == '__main__':
             clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
             opt = clf.fit(X_scaled, y_scaled.reshape(3600))
             
+            svrModels, gbrModels = [], []
             svr_val_rmse, svr_test_rmse = [],[]
             reg_val_rmse, reg_test_rmse = [],[]
             NNhist, NNtest_scores = [], []
@@ -1030,8 +1094,9 @@ if __name__ == '__main__':
                     svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
                     svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                    svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                    error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    svrModel = svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
+                    svrModels.append(svrModel)
+                    error = svrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
@@ -1040,20 +1105,24 @@ if __name__ == '__main__':
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
                     reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                    reg.fit(X_train, y_train.reshape(len(y_train)))
-                    error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
+                    gbrModel = reg.fit(X_train, y_train.reshape(len(y_train)))
+                    gbrModels.append(gbrModel)
+                    error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_largest = tf)
+                    model.save('obj/remove_largest/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
         
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_largest = tf)
+                    model.save('obj/remove_largest/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_largest = tf)
+                    model.save('obj/remove_largest/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
                 except:
@@ -1065,7 +1134,8 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
-                       'tfs':tfs}
+                       'tfs':tfs,
+                       'svrModels': svrModels, 'gbrModels':gbrModels}
             save_obj(to_save, 'removeLargestData')
         
         else:
@@ -1108,8 +1178,7 @@ if __name__ == '__main__':
             #ax.set_ylim(10**-4, 10**-1)
             ax.minorticks_on()
    
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest.pdf")
 
 """
