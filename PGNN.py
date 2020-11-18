@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from matplotlib import colors
 from matplotlib.lines import Line2D
+import seaborn as sns
 
 import multiprocessing
 
@@ -100,7 +101,10 @@ def combined_loss(params):
 
 
 
-def load_data(scaling_input, test_frac = None, remove_mean = None, remove_smallest = None, remove_largest = None):
+def load_data(scaling_input, test_frac = None, 
+              remove_mean = None, remove_smallest = None, remove_largest = None,
+              r_z_mean = None, r_z_smallest = None, r_z_largest = None, 
+              r_theta_mean = None, r_theta_smallest = None, r_theta_largest = None):
     # Load features (Xc) and target values (Y) 
     filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
@@ -152,6 +156,41 @@ def load_data(scaling_input, test_frac = None, remove_mean = None, remove_smalle
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
         
+    elif r_z_mean != None:
+        limit = int(len(X_scaled_og[:,0]) * r_z_mean * 0.5)
+        inds_above_mean = np.where(X_scaled_og[:,0] > X_scaled_og[:,0].mean())[0][0:limit]
+        inds_below_mean = np.where(X_scaled_og[:,0] < X_scaled_og[:,0].mean())[0][-limit::]
+        remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
+        X_unseen, y_unseen = X_scaled[remove_inds], y_scaled[remove_inds]
+        X_train, y_train = np.delete(X_scaled, remove_inds, 0),  np.delete(y_scaled, remove_inds)
+    
+    elif r_z_smallest != None:
+        inds = np.argsort(X_scaled_og[:,0].reshape(3600))
+        limit = int(len(X_scaled_og) * r_z_smallest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+        
+    elif r_z_largest != None:
+        inds = np.flip(np.argsort(X_scaled_og[:,0].reshape(3600)))
+        limit = int(len(X_scaled_og) * r_z_largest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+    
+    elif r_theta_mean != None:
+        pass
+    
+    elif r_theta_smallest != None:
+        inds = np.argsort(X_scaled_og[:,1].reshape(3600))
+        limit = int(len(X_scaled_og) * r_theta_smallest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+    
+    elif r_theta_largest != None:
+        inds = np.flip(np.argsort(X_scaled_og[:,1].reshape(3600)))
+        limit = int(len(X_scaled_og) * r_theta_largest)
+        X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
+        X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
+      
     else:
         #Split data 
         X_train, X_unseen, y_train, y_unseen = train_test_split(X_scaled, y_scaled, test_size=test_frac, shuffle = True, random_state=32)
@@ -536,7 +575,9 @@ if __name__ == '__main__':
 
 
     def gridsearch_lamda1(load=0) :
-        
+        """
+        PGNN1 with just Z MLC
+        """        
         #Grid search batch size and num epochs
         lamda = np.logspace(-2,2,10)
         if load != 0:
@@ -570,7 +611,10 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_1.pdf")
         
     def gridsearch_lamda2(load=0):
-        
+        """
+        PGNN2 with just theta MLC
+        """
+
         #Grid search batch size and num epochs
         lamda = np.logspace(-2,2,10)
         if load != 0:
@@ -602,7 +646,46 @@ if __name__ == '__main__':
             ax.set_xlabel('Lambda')
             ax.set_ylabel('Test RMSE')
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_2.pdf")
-        
+
+    def gridsearch_lamda12(load=0):
+        """
+        gridsearch PGNN12 with z & theta MLC
+        """
+
+        #Grid search batch size and num epochs
+        lamda = np.logspace(-2,2,5)
+        if load != 0:
+            score_RMSE, histories, sim_detail = [],[], []
+            for i in lamda:
+                for j in lamda:
+                    try:
+                        hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = i, lamda2 = j)
+                        score_RMSE.append(test_scores)
+                        histories.append(hists)
+                        sim_detail.append((i,j))
+                    except:
+                        pass
+            all_info = {'RMSE':score_RMSE, 'History':histories, 'Sim Detail': sim_detail}
+            
+            save_obj(all_info, 'PGNN_12_lamda')
+        else:
+            #heatmap?
+            lam1, lam2 = np.meshgrid(lamda, lamda)
+            
+            
+            score_RMSE = load_obj('PGNN_12_lamda')
+            RMSE = score_RMSE['RMSE']
+            RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))]
+            RMSE_final = np.asarray([RMSE[i][-1] for i in range(len(RMSE))]).reshape((len(lam1), len(lam2)))
+            score = pd.DataFrame(data = RMSE_final, index = lamda, columns = lamda)
+            #columns in score are lamda 2, index is lamda 1
+            
+            fig, ax = plt.subplots(1,1, figsize = (3.5,3.3), tight_layout = True)
+            sns.heatmap(score, annot=True, annot_kws = {'fontsize':'x-small'},ax = ax)
+            ax.set_ylabel('$\lambda_{Phy,1}$')
+            ax.set_xlabel('$\lambda_{Phy,2}$')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_12.pdf")
+                    
 
     def PGNN1performance(load = 0):
         if load != 0:
@@ -702,61 +785,233 @@ if __name__ == '__main__':
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_2.pdf")
 
+    def PGNN12performance(load = 0):
+        if load != 0:
+            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1])
+            model.save('obj/PGNN_12_model.h5')
+            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
+            save_obj(PGNN, 'PGNN_12')  
+        else:
+            PGNN = load_obj('PGNN_12')
+        
+        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+        fax = ax.ravel()
+        for i in range(0,len(PGNN['hist'])):
+            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
+            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
+            fax[i].minorticks_on()
+            fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+            fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+            fax[i].set_xlim(0,50)
+            fax[i].set_xlabel('Epoch')
+            fax[i].set_ylabel('Loss')  
+            if i == 0:                    
+                handles, labels = fax[i].get_legend_handles_labels()
+                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+            else:
+                pass
+        fax[0].set_ylim(0, 0.7)
+        fax[1].set_ylim(0, 0.05)
+        fax[2].set_ylim(0, 0.05)
+        fax[3].set_ylim(0, 0.05)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_12.pdf")
+
+        import tensorflow as tf
+        load_model = tf.keras.models.load_model('obj/PGNN_12_model.h5', 
+                                custom_objects={'loss':combined_loss}, compile = False)
+        
+
+        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
+        text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
+        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.set_ylim(-2,2)
+        ax.set_xlim(-2,2)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_12.pdf")
+
     
     def stress_testing_graphs():
-        nbins = 25
-        fs = (3, 3)
-        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
+        
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Entire dataset')
-        ax.hist(y_train, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, color = 'red', label = 'Reduced dataset')
+        nbins = np.histogram_bin_edges(y_scaled, bins = 40)
+        fs = (3.3, 1.8)
+        histylim = 200
+        
+        #Random --------------------------
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count")
         ax.set_xlabel("Y")
         ax.minorticks_on()
-        ax.set_ylim(0, 250)
+        ax.set_ylim(0, histylim)
         ax.set_xlim(-2,2)
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
+        
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_random.pdf")
         
-        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled',density = False, label = 'Entire dataset')
-        ax.hist(y_train, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, color = 'red', label = 'Reduced dataset')
+        #Output data removal -------------
+        #Extrapolate smallest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count")
         ax.set_xlabel("Y")
         ax.minorticks_on()
-        ax.set_ylim(0, 250)
+        ax.set_ylim(0, histylim)
         ax.set_xlim(-2,2)
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_mean.pdf")
-        
-        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Entire dataset')
-        ax.hist(y_train, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, color = 'red', label = 'Reduced dataset')
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)        
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_smallest.pdf")
+        #Extrapolate largest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count")
         ax.set_xlabel("Y")
         ax.minorticks_on()
-        ax.set_ylim(0, 250)
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_largest.pdf")
+        #Interpolate mean
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
         ax.set_xlim(-2,2)
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6})         
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_smallest.pdf")
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_mean.pdf")
         
-        fig, ax = plt.subplots(1,1, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled',density = False, label = 'Entire dataset')
-        ax.hist(y_train, bins = nbins, alpha = 0.5, histtype = 'stepfilled',density = False, color = 'red', label = 'Reduced dataset')
+        #Z data removal -------------
+        #Extrapolate smallest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_smallest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count")
         ax.set_xlabel("Y")
         ax.minorticks_on()
-        ax.set_ylim(0, 250)
+        ax.set_ylim(0, histylim)
         ax.set_xlim(-2,2)
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_largest.pdf")
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)        
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_smallest.pdf")
+        #Extrapolate largest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_largest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_largest.pdf")
+        #Interpolate mean
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_mean = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6})         
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_mean.pdf") 
+        
+        #theta data removal -------------
+        #Extrapolate smallest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_smallest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)        
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_smallest.pdf")
+        #Extrapolate largest
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_largest = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_largest.pdf")
+
 
     def remove_random(load = 0):
         tfs = np.arange(0.1,1,0.1)
