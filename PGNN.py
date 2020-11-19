@@ -138,11 +138,12 @@ def load_data(scaling_input, test_frac = None,
 
     if remove_mean != None:
         limit = int(len(y_og) * remove_mean * 0.5)
-        inds_above_mean = np.where(y_og > y_og.mean())[0][-limit::]
-        inds_below_mean = np.where(y_og < y_og.mean())[0][0:limit]
+        y_og_sort_inds = np.argsort(y_og.reshape(3600)) #sort low to high
+        inds_above_mean = np.where(y_og[y_og_sort_inds] > y_og.mean())[0][0:limit]
+        inds_below_mean = np.where(y_og[y_og_sort_inds] < y_og.mean())[0][-limit::]
         remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
-        X_unseen, y_unseen = X_scaled[remove_inds], y_scaled[remove_inds]
-        X_train, y_train = np.delete(X_scaled, remove_inds, 0),  np.delete(y_scaled, remove_inds)
+        X_unseen, y_unseen = X_scaled[y_og_sort_inds][remove_inds], y_scaled[y_og_sort_inds][remove_inds]
+        X_train, y_train = np.delete(X_scaled[y_og_sort_inds], remove_inds, 0),  np.delete(y_scaled[y_og_sort_inds], remove_inds)
         
     elif remove_smallest != None:
         inds = np.argsort(y_og.reshape(3600))
@@ -158,11 +159,12 @@ def load_data(scaling_input, test_frac = None,
         
     elif r_z_mean != None:
         limit = int(len(X_scaled_og[:,0]) * r_z_mean * 0.5)
-        inds_above_mean = np.where(X_scaled_og[:,0] > X_scaled_og[:,0].mean())[0][0:limit]
-        inds_below_mean = np.where(X_scaled_og[:,0] < X_scaled_og[:,0].mean())[0][-limit::]
+        og_sort_inds = np.argsort(X_scaled_og[:,0]) #sort low to high
+        inds_above_mean = np.where(X_scaled_og[:,0][og_sort_inds] > X_scaled_og[:,0].mean())[0][0:limit]
+        inds_below_mean = np.where(X_scaled_og[:,0][og_sort_inds] < X_scaled_og[:,0].mean())[0][-limit::]
         remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
-        X_unseen, y_unseen = X_scaled[remove_inds], y_scaled[remove_inds]
-        X_train, y_train = np.delete(X_scaled, remove_inds, 0),  np.delete(y_scaled, remove_inds)
+        X_unseen, y_unseen = X_scaled[og_sort_inds][remove_inds], y_scaled[og_sort_inds][remove_inds]
+        X_train, y_train = np.delete(X_scaled[og_sort_inds], remove_inds, 0),  np.delete(y_scaled[og_sort_inds], remove_inds)
     
     elif r_z_smallest != None:
         inds = np.argsort(X_scaled_og[:,0].reshape(3600))
@@ -177,7 +179,13 @@ def load_data(scaling_input, test_frac = None,
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
     
     elif r_theta_mean != None:
-        pass
+        limit = int(len(X_scaled_og[:,1]) * r_theta_mean * 0.5)
+        og_sort_inds = np.argsort(X_scaled_og[:,1]) #sort low to high
+        inds_above_mean = np.where(X_scaled_og[:,1][og_sort_inds] > X_scaled_og[:,1].mean())[0][0:limit]
+        inds_below_mean = np.where(X_scaled_og[:,1][og_sort_inds] < X_scaled_og[:,1].mean())[0][-limit::]
+        remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
+        X_unseen, y_unseen = X_scaled[og_sort_inds][remove_inds], y_scaled[og_sort_inds][remove_inds]
+        X_train, y_train = np.delete(X_scaled[og_sort_inds], remove_inds, 0),  np.delete(y_scaled[og_sort_inds], remove_inds)
     
     elif r_theta_smallest != None:
         inds = np.argsort(X_scaled_og[:,1].reshape(3600))
@@ -239,7 +247,10 @@ def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lamda1 = None, lamda2 = None, test_frac = None, remove_mean = None, remove_smallest = None, remove_largest = None):
+def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, 
+                  lamda1 = None, lamda2 = None, 
+                  test_frac = None, 
+                  remove_mean = None, remove_smallest = None, remove_largest = None):
      
     #set lamdas=0 for pgnn0
     if lamda1 == None:
@@ -293,8 +304,8 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, lam
         
     remove_largest = None    
     
-    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, test_frac = testfrac, remove_mean = removemean,
-                                                                                                                         remove_smallest = removesmallest, remove_largest = removelargest)
+    X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(scaling_input, test_frac = testfrac, 
+                                                                                                                         remove_mean = removemean, remove_smallest = removesmallest, remove_largest = removelargest)
     
     # Creating the model
     model = Sequential()     
@@ -1011,6 +1022,24 @@ if __name__ == '__main__':
         ax1.set_xlim(0, 1)
         ax1.set_ylim(0, 1)
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_largest.pdf")
+        #Interpolate mean
+        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_mean = 0.5)
+        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        ax.set_ylabel("Count")
+        ax.set_xlabel("Y")
+        ax.minorticks_on()
+        ax.set_ylim(0, histylim)
+        ax.set_xlim(-2,2)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':6})         
+        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.set_xlabel('Z')
+        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, 1)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_mean.pdf") 
 
 
     def remove_random(load = 0):
@@ -1030,6 +1059,7 @@ if __name__ == '__main__':
             NNhist, NNtest_scores = [], []
             PGNN_1_hist, PGNN_1_test_scores = [],[]
             PGNN_2_hist, PGNN_2_test_scores = [],[]
+            PGNN_12_hist, PGNN_12_test_scores = [],[]
             for tf in tfs: 
                 try:
                     X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = tf)               
@@ -1045,7 +1075,7 @@ if __name__ == '__main__':
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
-                    
+                    #Black box
                     reg = GradientBoostingRegressor(n_estimators = 2000)
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
@@ -1055,21 +1085,30 @@ if __name__ == '__main__':
                     error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
-                
+                    
+                    #NN
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, test_frac = tf)
                     model.save('obj/remove_random/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
-        
+                    
+                    #PGNN1
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], test_frac = tf)
                     model.save('obj/remove_random/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
+                    #PGNN2
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], test_frac = tf)
                     model.save('obj/remove_random/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
+                    
+                    #PGNN12
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1], test_frac = tf)
+                    model.save('obj/remove_random/PGNN_12_' + str(int(tf*100)) +'.h5')
+                    PGNN_12_hist.append(hists)
+                    PGNN_12_test_scores.append(test_scores)
                 except:
                     pass
             
@@ -1079,6 +1118,7 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'PGNN_12_hist':PGNN_12_hist, 'PGNN_12_test_scores':PGNN_12_test_scores,
                        'tfs':tfs, 
                        'svrModels': svrModels, 'gbrModels':gbrModels}
             save_obj(to_save, 'removeRandomData')
@@ -1199,7 +1239,7 @@ if __name__ == '__main__':
             ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random_80hist.pdf")
             
-    def remove_mean(load = 0):
+    def remove_y_mean(load = 0):
         tfs = np.arange(0.1,1,0.1)
         if load != 0 :
             
@@ -1216,6 +1256,7 @@ if __name__ == '__main__':
             NNhist, NNtest_scores = [], []
             PGNN_1_hist, PGNN_1_test_scores = [],[]
             PGNN_2_hist, PGNN_2_test_scores = [],[]
+            PGNN_12_hist, PGNN_12_test_scores = [],[]
             for tf in tfs: 
                 try:
                     X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = tf)               
@@ -1231,7 +1272,7 @@ if __name__ == '__main__':
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
-                    
+                    #Blackbox
                     reg = GradientBoostingRegressor(n_estimators = 2000)
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
@@ -1241,21 +1282,30 @@ if __name__ == '__main__':
                     error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
-                
+                    
+                    #NN
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_mean = tf)
-                    model.save('obj/remove_mean/NN' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_mean/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
-        
+                    
+                    #PGNN1
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_mean = tf)
-                    model.save('obj/remove_mean/PGNN_1_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_mean/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
+                    #PGNN2
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_mean = tf)
-                    model.save('obj/remove_mean/PGNN_2_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_mean/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
+
+                    #PGNN12
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1], remove_mean = tf)
+                    model.save('obj/remove_y_mean/PGNN_12_' + str(int(tf*100)) +'.h5')
+                    PGNN_12_hist.append(hists)
+                    PGNN_12_test_scores.append(test_scores)
                 except:
                     pass
             
@@ -1265,12 +1315,13 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'PGNN_12_hist':PGNN_12_hist, 'PGNN_12_test_scores':PGNN_12_test_scores,
                        'tfs':tfs,
                        'svrModels': svrModels, 'gbrModels':gbrModels}
-            save_obj(to_save, 'removeMeanData')
+            save_obj(to_save, 'remove_y_MeanData')
         
         else:
-            all_data = load_obj('removeMeanData')
+            all_data = load_obj('remove_y_MeanData')
             all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
             all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
             all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
@@ -1365,7 +1416,7 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean_80.pdf")             
 
             
-    def remove_smallest(load = 0):
+    def remove_y_smallest(load = 0):
         tfs = np.arange(0.1,1,0.1)
         if load != 0 :
             
@@ -1382,6 +1433,7 @@ if __name__ == '__main__':
             NNhist, NNtest_scores = [], []
             PGNN_1_hist, PGNN_1_test_scores = [],[]
             PGNN_2_hist, PGNN_2_test_scores = [],[]
+            PGNN_12_hist, PGNN_12_test_scores = [],[]            
             for tf in tfs: 
                 try:
                     X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = tf)               
@@ -1397,7 +1449,7 @@ if __name__ == '__main__':
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
-                    
+                    #Black box
                     reg = GradientBoostingRegressor(n_estimators = 2000)
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
@@ -1408,20 +1460,29 @@ if __name__ == '__main__':
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
                 
+                    #NN
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_smallest = tf)
-                    model.save('obj/remove_smallest/NN' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_smallest/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
-        
+                    
+                    #PGNN1
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_smallest = tf)
-                    model.save('obj/remove_smallest/PGNN_1_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_smallest/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
+                    #PGNN2
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_smallest = tf)
-                    model.save('obj/remove_smallest/PGNN_2_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_smallest/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
+
+                    #PGNN12
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1], remove_smallest = tf)
+                    model.save('obj/remove_y_smallest/PGNN_12_' + str(int(tf*100)) +'.h5')
+                    PGNN_12_hist.append(hists)
+                    PGNN_12_test_scores.append(test_scores)
                 except:
                     pass
             
@@ -1431,12 +1492,13 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'PGNN_12_hist':PGNN_12_hist, 'PGNN_12_test_scores':PGNN_12_test_scores,
                        'tfs':tfs,
                        'svrModels': svrModels, 'gbrModels':gbrModels}
-            save_obj(to_save, 'removeSmallestData')
+            save_obj(to_save, 'remove_y_SmallestData')
         
         else:
-            all_data = load_obj('removeSmallestData')
+            all_data = load_obj('remove_y_SmallestData')
             all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
             all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
             all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
@@ -1549,7 +1611,7 @@ if __name__ == '__main__':
             ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest_80hist.pdf")
           
-    def remove_largest(load = 0):
+    def remove_y_largest(load = 0):
         tfs = np.arange(0.1,1,0.1)
         if load != 0 :
             
@@ -1566,6 +1628,7 @@ if __name__ == '__main__':
             NNhist, NNtest_scores = [], []
             PGNN_1_hist, PGNN_1_test_scores = [],[]
             PGNN_2_hist, PGNN_2_test_scores = [],[]
+            PGNN_12_hist, PGNN_12_test_scores = [],[]
             for tf in tfs: 
                 try:
                     X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = tf)               
@@ -1581,7 +1644,7 @@ if __name__ == '__main__':
                     error = error**2
                     svr_test_rmse.append(np.mean(error)**0.5)
                         
-                    
+                    #Black box
                     reg = GradientBoostingRegressor(n_estimators = 2000)
                     reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
                     reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
@@ -1591,21 +1654,30 @@ if __name__ == '__main__':
                     error = gbrModel.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
                     error = error**2
                     reg_test_rmse.append(np.mean(error)**0.5)      
-                
+                    
+                    #NN
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, remove_largest = tf)
-                    model.save('obj/remove_largest/NN' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_largest/NN' + str(int(tf*100)) +'.h5')
                     NNhist.append(hists)
                     NNtest_scores.append(test_scores)
-        
+                    
+                    #PGNN1
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,10)[2], remove_largest = tf)
-                    model.save('obj/remove_largest/PGNN_1_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_largest/PGNN_1_' + str(int(tf*100)) +'.h5')
                     PGNN_1_hist.append(hists)
                     PGNN_1_test_scores.append(test_scores)
                     
+                    #PGNN2
                     hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = np.logspace(-2,2,10)[2], remove_largest = tf)
-                    model.save('obj/remove_largest/PGNN_2_' + str(int(tf*100)) +'.h5')
+                    model.save('obj/remove_y_largest/PGNN_2_' + str(int(tf*100)) +'.h5')
                     PGNN_2_hist.append(hists)
                     PGNN_2_test_scores.append(test_scores)
+
+                    #PGNN12
+                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1],  remove_largest = tf)
+                    model.save('obj/remove_y_largest/PGNN_12_' + str(int(tf*100)) +'.h5')
+                    PGNN_12_hist.append(hists)
+                    PGNN_12_test_scores.append(test_scores)
                 except:
                     pass
             
@@ -1615,12 +1687,13 @@ if __name__ == '__main__':
                        'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
                        'PGNN_1_hist':PGNN_1_hist, 'PGNN_1_test_scores':PGNN_1_test_scores,
                        'PGNN_2_hist':PGNN_2_hist, 'PGNN_2_test_scores':PGNN_2_test_scores,
+                       'PGNN_12_hist':PGNN_12_hist, 'PGNN_12_test_scores':PGNN_12_test_scores,
                        'tfs':tfs,
                        'svrModels': svrModels, 'gbrModels':gbrModels}
-            save_obj(to_save, 'removeLargestData')
+            save_obj(to_save, 'remove_y_LargestData')
         
         else:
-            all_data = load_obj('removeLargestData')
+            all_data = load_obj('remove_y_LargestData')
             all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
             all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
             all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
