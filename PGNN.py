@@ -519,7 +519,7 @@ if __name__ == '__main__':
             save_obj(NN, 'NN')  
         else:
             NN = load_obj('NN')
-            fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+            fig, ax = plt.subplots(2, 2, figsize=(4,4), tight_layout = True)
             fax = ax.ravel()
             for i in range(0,len(NN['hist'])):
                 fax[i].plot(NN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
@@ -546,7 +546,7 @@ if __name__ == '__main__':
             load_model = tf.keras.models.load_model('obj/NNmodel.h5', compile = False)
             
 
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+            fig, ax = plt.subplots(1,1, figsize=(2,2), tight_layout = True)
             ax.scatter(NN['data'][0]['y_unseen'], load_model.predict(NN['data'][0]['X_unseen']), s=10., color='black')
             text = "$R^2 = {:.3f}$".format(r2_score(NN['data'][0]['y_unseen'],load_model.predict(NN['data'][0]['X_unseen'])))
             ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
@@ -559,79 +559,6 @@ if __name__ == '__main__':
             ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_NN.pdf")
 
-
-    def gridsearch_lamda1(load=0) :
-        """
-        PGNN1 with just Z MLC
-        """        
-        #Grid search batch size and num epochs
-        lamda = np.logspace(-2,2,10)
-        if load != 0:
-            score_RMSE, histories = [],[]
-            for i in lamda:
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = i)
-                    score_RMSE.append(test_scores)
-                    histories.append(hists)
-            all_info = {'RMSE':score_RMSE, 'History':histories}
-            
-            save_obj(all_info, 'PGNN_1_lamda')
-        else:
-            score_RMSE = load_obj('PGNN_1_lamda')
-            RMSE = score_RMSE['RMSE']
-            RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))] 
-            score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
-        
-            
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
-            err = abs(err - score.mean().values)
-            ax.scatter(lamda, score.mean(), s=10, c='k')
-            ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
-            ax.set_xscale('log')
-            ax.set_ylim(0,0.006)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            ax.set_xlabel('Lambda')
-            ax.set_ylabel('Test RMSE')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_1.pdf")
-        
-    def gridsearch_lamda2(load=0):
-        """
-        PGNN2 with just theta MLC
-        """
-
-        #Grid search batch size and num epochs
-        lamda = np.logspace(-2,2,10)
-        if load != 0:
-            score_RMSE, histories = [],[]
-            for i in lamda:
-                    hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda2 = i)
-                    score_RMSE.append(test_scores)
-                    histories.append(hists)
-            all_info = {'RMSE':score_RMSE, 'History':histories}
-            
-            save_obj(all_info, 'PGNN_2_lamda')
-        else:
-            score_RMSE = load_obj('PGNN_2_lamda')
-            RMSE = score_RMSE['RMSE']
-            RMSE = [np.stack(RMSE[i])[:,-1] for i in range(len(RMSE))]
-            score = pd.DataFrame(np.stack(RMSE).T, columns = lamda)
-        
-            
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            err = np.stack((score.min().values.reshape(1, 10), score.max().values.reshape(1, 10)), axis = 1).reshape(2,10)
-            err = abs(err - score.mean().values)
-            ax.scatter(lamda, score.mean(), s=10, c='k')
-            ax.errorbar(lamda, score.mean(), yerr = err, capsize = 3, capthick = 0.5, c='k')
-            ax.set_xscale('log')
-            ax.set_ylim(0,0.006)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            ax.set_xlabel('Lambda')
-            ax.set_ylabel('Test RMSE')
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_2.pdf")
 
     def gridsearch_lamda12(load=0):
         """
@@ -673,103 +600,7 @@ if __name__ == '__main__':
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_12.pdf")
                     
 
-    def PGNN1performance(load = 0):
-        if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,2,10)[2])
-            model.save('obj/PGNN_1_model.h5')
-            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN_1')  
-        else:
-            PGNN = load_obj('PGNN_1')
-        
-        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
-        fax = ax.ravel()
-        for i in range(0,len(PGNN['hist'])):
-            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
-            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
-            fax[i].minorticks_on()
-            fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            fax[i].set_xlim(0,50)
-            fax[i].set_xlabel('Epoch')
-            fax[i].set_ylabel('Loss')  
-            if i == 0:                    
-                handles, labels = fax[i].get_legend_handles_labels()
-                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
-            else:
-                pass
-        fax[0].set_ylim(0, 0.7)
-        fax[1].set_ylim(0, 0.05)
-        fax[2].set_ylim(0, 0.05)
-        fax[3].set_ylim(0, 0.05)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_1.pdf")
 
-        import tensorflow as tf
-        load_model = tf.keras.models.load_model('obj/PGNN_1_model.h5', 
-                                custom_objects={'loss':combined_loss}, compile = False)
-        
-
-        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-        ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
-        text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
-        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
-        ax.set_ylabel('Predicted response')
-        ax.set_xlabel('Actual response')
-        ax.minorticks_on()
-        ax.set_ylim(-2,2)
-        ax.set_xlim(-2,2)
-        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_1.pdf")
-        
-    def PGNN2performance(load = 0):
-        if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda2 = np.logspace(-2,2,10)[2])
-            model.save('obj/PGNN_2_model.h5')
-            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN_2')  
-        else:
-            PGNN = load_obj('PGNN_2')
-        
-        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
-        fax = ax.ravel()
-        for i in range(0,len(PGNN['hist'])):
-            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
-            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
-            fax[i].minorticks_on()
-            fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            fax[i].set_xlim(0,50)
-            fax[i].set_xlabel('Epoch')
-            fax[i].set_ylabel('Loss')  
-            if i == 0:                    
-                handles, labels = fax[i].get_legend_handles_labels()
-                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
-            else:
-                pass
-        fax[0].set_ylim(0, 0.7)
-        fax[1].set_ylim(0, 0.05)
-        fax[2].set_ylim(0, 0.05)
-        fax[3].set_ylim(0, 0.05)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_2.pdf")
-
-        import tensorflow as tf
-        load_model = tf.keras.models.load_model('obj/PGNN_2_model.h5', 
-                                custom_objects={'loss':combined_loss}, compile = False)
-        
-
-        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-        ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
-        text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
-        ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
-        ax.set_ylabel('Predicted response')
-        ax.set_xlabel('Actual response')
-        ax.set_ylim(-2,2)
-        ax.set_xlim(-2,2)
-        ax.minorticks_on()
-        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_2.pdf")
 
     def PGNN12performance(load = 0):
         if load != 0:
@@ -780,7 +611,7 @@ if __name__ == '__main__':
         else:
             PGNN = load_obj('PGNN_12')
         
-        fig, ax = plt.subplots(2, 2, figsize=(5,5), tight_layout = True)
+        fig, ax = plt.subplots(2, 2, figsize=(4,4), tight_layout = True)
         fax = ax.ravel()
         for i in range(0,len(PGNN['hist'])):
             fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
@@ -807,7 +638,7 @@ if __name__ == '__main__':
                                 custom_objects={'loss':combined_loss}, compile = False)
         
 
-        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        fig, ax = plt.subplots(1,1, figsize=(2,2), tight_layout = True)
         ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
         text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
         ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
@@ -821,16 +652,20 @@ if __name__ == '__main__':
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_unseenperformance_PGNN_12.pdf")
 
     
-    def stress_testing_graphs():
+
+            
+    def stress_test_distribution_x(file_loc_string, data_kw):
         
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
         nbins = np.histogram_bin_edges(y_scaled, bins = 40)
+        nbins_z = np.histogram_bin_edges(X_scaled[:,0], bins = 18)
+        nbins_theta = np.histogram_bin_edges(X_scaled[:,1], bins = 100)
+        
         fs = (3.3, 1.8)
         histylim = 200
         
-        #Random --------------------------
         fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.5})
         ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
         ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count")
@@ -841,640 +676,23 @@ if __name__ == '__main__':
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
         
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
+        ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta])
         ax1.set_xlabel('Z')
         ax1.set_ylabel(r'$\theta$')
         ax1.set_xlim(0, 1)
         ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_random.pdf")
-        
-        #Output data removal -------------
-        #Extrapolate smallest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)        
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_smallest.pdf")
-        #Extrapolate largest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_largest.pdf")
-        #Interpolate mean
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})         
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_output_mean.pdf")
-        
-        #Z data removal -------------
-        #Extrapolate smallest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_smallest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)        
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_smallest.pdf")
-        #Extrapolate largest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_largest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_largest.pdf")
-        #Interpolate mean
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_z_mean = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})         
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_z_mean.pdf") 
-        
-        #theta data removal -------------
-        #Extrapolate smallest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_smallest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)        
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_smallest.pdf")
-        #Extrapolate largest
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_largest = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})       
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_largest.pdf")
-        #Interpolate mean
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, r_theta_mean = 0.5)
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
-        ax.minorticks_on()
-        ax.set_ylim(0, histylim)
-        ax.set_xlim(-2,2)
-        handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper right', prop={'size':6})         
-        ax1.scatter(X_train[:,0], X_train[:,1], s=1, c='k')
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_theta_mean.pdf") 
-
-
-    def remove_random(load = 0):
-        tfs = np.arange(0.1,1,0.1)
-        if load != 0 :
-            pass          
-        else:
-            all_data = load_obj('removeRandomData')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
-            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
-            
-            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
-            
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
-            
-            #NN
-            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
-                      
-            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
-            #PGNN_1
-            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
-             
-            #PGNN_2
-            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
-            
-            
-            ax.set_yscale('log')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            ax.set_xlim(0,1)
-            ax.set_ylim(3*10**-4, 10**-1)
-            ax.minorticks_on()
-   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random.pdf")
-            
-            
-            
-            #unseen evaluation
-            import tensorflow as tf
-
-            NN_20 = tf.keras.models.load_model('obj/remove_random/NN20.h5', compile = False)
-            PGNN1_20 = tf.keras.models.load_model('obj/remove_random/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_20 = tf.keras.models.load_model('obj/remove_random/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled_20, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.2)
-            
-            NN_80 = tf.keras.models.load_model('obj/remove_random/NN80.h5', compile = False)
-            PGNN1_80 = tf.keras.models.load_model('obj/remove_random/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_80 = tf.keras.models.load_model('obj/remove_random/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled_80, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.8)
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            alp = 0.5
-            ax.scatter(y_unseen_20, NN_20.predict(X_unseen_20), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_20, PGNN1_20.predict(X_unseen_20), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_20, PGNN2_20.predict(X_unseen_20), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_20,NN_20.predict(X_unseen_20) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN1_20.predict(X_unseen_20) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN2_20.predict(X_unseen_20) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.set_ylim(-2, 2)
-            ax.set_xlim(-2,2)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random_20.pdf")       
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_80, PGNN1_80.predict(X_unseen_80), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_80, PGNN2_80.predict(X_unseen_80), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_80,NN_80.predict(X_unseen_80) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN1_80.predict(X_unseen_80) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN2_80.predict(X_unseen_80) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.set_ylim(-2, 2)
-            ax.set_xlim(-2,2)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random_80.pdf") 
-            
-            nbins = 25
-            alp2 = 0.25
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.hist(y_unseen_80, bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'grey', label = 'Unseen')
-            ax.hist(NN_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'blue', label = 'NN')
-            ax.hist(PGNN1_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'red', label = 'PGNN-1')
-            ax.hist(PGNN2_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'green', label = 'PGNN-2')
-            ax.set_ylabel("Count")
-            ax.set_xlabel("Y")
-            ax.minorticks_on()
-            ax.set_ylim(0,250)
-            ax.set_xlim(-2,2)
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_random_80hist.pdf")
-            
-    def remove_y_mean(load = 0):
-        tfs = np.arange(0.1,1,0.1)
-        if load != 0 :
-            pass
-        
-        else:
-            all_data = load_obj('remove_y_MeanData')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
-            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
-            
-            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
-            
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
-            
-            #NN
-            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
-                      
-            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
-            #PGNN_1
-            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
-             
-            #PGNN_2
-            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
-            
-            
-            ax.set_yscale('log')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            ax.set_xlim(0,1)
-            ax.set_ylim(5*10**-2, 3*10**0)
-            ax.minorticks_on()
-   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper left', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean.pdf")
-            
-            
-            #unseen evaluation
-            import tensorflow as tf
-
-            NN_20 = tf.keras.models.load_model('obj/remove_mean/NN20.h5', compile = False)
-            PGNN1_20 = tf.keras.models.load_model('obj/remove_mean/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_20 = tf.keras.models.load_model('obj/remove_mean/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.2)
-            
-            NN_80 = tf.keras.models.load_model('obj/remove_mean/NN80.h5', compile = False)
-            PGNN1_80 = tf.keras.models.load_model('obj/remove_mean/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_80 = tf.keras.models.load_model('obj/remove_mean/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_mean = 0.8)
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            alp = 0.5
-            ax.scatter(y_unseen_20, NN_20.predict(X_unseen_20), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_20, PGNN1_20.predict(X_unseen_20), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_20, PGNN2_20.predict(X_unseen_20), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_20,NN_20.predict(X_unseen_20) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN1_20.predict(X_unseen_20) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN2_20.predict(X_unseen_20) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean_20.pdf")       
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_80, PGNN1_80.predict(X_unseen_80), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_80, PGNN2_80.predict(X_unseen_80), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_80,NN_80.predict(X_unseen_80) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN1_80.predict(X_unseen_80) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN2_80.predict(X_unseen_80) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_mean_80.pdf")             
-
-            
-    def remove_y_smallest(load = 0):
-        tfs = np.arange(0.1,1,0.1)
-        if load != 0 :
-            pass
-        else:
-            all_data = load_obj('remove_y_SmallestData')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
-            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
-            
-            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
-            
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
-            
-            #NN
-            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
-                      
-            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
-            #PGNN_1
-            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
-             
-            #PGNN_2
-            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
-            
-            
-            ax.set_yscale('log')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            ax.set_xlim(0,1)
-            #ax.set_ylim(10**-4, 10**-1)
-            ax.minorticks_on()
-   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest.pdf")
-            
-            #unseen evaluation
-            import tensorflow as tf
-
-            NN_20 = tf.keras.models.load_model('obj/remove_smallest/NN20.h5', compile = False)
-            PGNN1_20 = tf.keras.models.load_model('obj/remove_smallest/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_20 = tf.keras.models.load_model('obj/remove_smallest/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.2)
-            
-            NN_80 = tf.keras.models.load_model('obj/remove_smallest/NN80.h5', compile = False)
-            PGNN1_80 = tf.keras.models.load_model('obj/remove_smallest/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_80 = tf.keras.models.load_model('obj/remove_smallest/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled_80, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_smallest = 0.8)
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            alp = 0.5
-            ax.scatter(y_unseen_20, NN_20.predict(X_unseen_20), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_20, PGNN1_20.predict(X_unseen_20), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_20, PGNN2_20.predict(X_unseen_20), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_20,NN_20.predict(X_unseen_20) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN1_20.predict(X_unseen_20) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN2_20.predict(X_unseen_20) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.set_ylim(-3, 3)
-            ax.set_xlim(-3,3)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest_20.pdf")       
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_80, PGNN1_80.predict(X_unseen_80), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_80, PGNN2_80.predict(X_unseen_80), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_80,NN_80.predict(X_unseen_80) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN1_80.predict(X_unseen_80) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN2_80.predict(X_unseen_80) ) )
-            ax.text(0.05, 0.94, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.84, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.74, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.set_ylim(-3, 3)
-            ax.set_xlim(-3,3)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest_80.pdf") 
-            
-            nbins = 25
-            alp2 = 0.25
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.hist(y_unseen_80, bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'grey', label = 'Unseen')
-            ax.hist(NN_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'blue', label = 'NN')
-            ax.hist(PGNN1_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'red', label = 'PGNN-1')
-            ax.hist(PGNN2_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'green', label = 'PGNN-2')
-            ax.set_ylabel("Count")
-            ax.set_xlabel("Y")
-            ax.minorticks_on()
-            ax.set_ylim(0, 250)
-            ax.set_xlim(-3,2)
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_smallest_80hist.pdf")
-          
-    def remove_y_largest(load = 0):
-        tfs = np.arange(0.1,1,0.1)
-        if load != 0 :
-            pass
-        else:
-            all_data = load_obj('remove_y_LargestData')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
-            all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
-            
-            fig, ax = plt.subplots(1,1, figsize = (3,3), tight_layout = True)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
-            
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
-            
-            #NN
-            err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
-                      
-            offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
-            #PGNN_1
-            err = np.stack((all_data['PGNN_1_test_scores'][:,:,0].min(1), all_data['PGNN_1_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_1_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+ offset, all_data['PGNN_1_test_scores'][:,:,0].mean(1), c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN-1', zorder=20)           
-             
-            #PGNN_2
-            err = np.stack((all_data['PGNN_2_test_scores'][:,:,0].min(1), all_data['PGNN_2_test_scores'][:,:,0].max(1)), axis = 1).T
-            err = abs(err - all_data['PGNN_2_test_scores'][:,:,0].mean(1))
-            ax.errorbar(all_data['tfs']+ 2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='green', ls='none', zorder=10)
-            ax.scatter(all_data['tfs']+2*offset, all_data['PGNN_2_test_scores'][:,:,0].mean(1), c = 'green', marker="d", edgecolor = 'k', s=10,label = 'PGNN-2', zorder=20)
-            
-            
-            ax.set_yscale('log')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            ax.set_xlim(0,1)
-            #ax.set_ylim(10**-4, 10**-1)
-            ax.minorticks_on()
-   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest.pdf")
-            
-            
-            #unseen evaluation
-            import tensorflow as tf
-
-            NN_20 = tf.keras.models.load_model('obj/remove_largest/NN20.h5', compile = False)
-            PGNN1_20 = tf.keras.models.load_model('obj/remove_largest/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_20 = tf.keras.models.load_model('obj/remove_largest/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.2)
-            
-            NN_80 = tf.keras.models.load_model('obj/remove_largest/NN80.h5', compile = False)
-            PGNN1_80 = tf.keras.models.load_model('obj/remove_largest/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            PGNN2_80 = tf.keras.models.load_model('obj/remove_largest/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-            X_scaled, y_scaled_80, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, remove_largest = 0.8)
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            alp = 0.5
-            ax.scatter(y_unseen_20, NN_20.predict(X_unseen_20), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_20, PGNN1_20.predict(X_unseen_20), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_20, PGNN2_20.predict(X_unseen_20), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_20,NN_20.predict(X_unseen_20) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN1_20.predict(X_unseen_20) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_20,PGNN2_20.predict(X_unseen_20) ) )
-            ax.text(0.05, 0.9, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.8, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.7, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.set_ylim(-3, 3)
-            ax.set_xlim(-3,3)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest_20.pdf")       
-            
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
-            ax.scatter(y_unseen_80, PGNN1_80.predict(X_unseen_80), alpha = alp, c = 'red', marker="s",  s=5,label = 'PGNN-1', zorder=20)
-            ax.scatter(y_unseen_80, PGNN2_80.predict(X_unseen_80), alpha = alp, c = 'green', marker="d",  s=5,label = 'PGNN-2', zorder=20)
-            text_NN = "NN $R^2 = {:.3f}$".format(r2_score(y_unseen_80,NN_80.predict(X_unseen_80) ) )
-            text_PGNN1 = "PGNN-1 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN1_80.predict(X_unseen_80) ) )
-            text_PGNN2 = "PGNN-2 $R^2 = {:.3f}$".format(r2_score(y_unseen_80,PGNN2_80.predict(X_unseen_80) ) )
-            ax.text(0.05, 0.94, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.84, text_PGNN1, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.text(0.05, 0.74, text_PGNN2, fontsize = 'xx-small', transform=ax.transAxes)
-            ax.set_ylabel('Predicted response')
-            ax.set_xlabel('Actual response')
-            ax.minorticks_on()
-            ax.set_ylim(-3, 3)
-            ax.set_xlim(-3,3)
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest_80.pdf") 
-            
-            nbins = 25
-            alp2 = 0.25
-            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
-            ax.hist(y_unseen_80, bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'grey', label = 'Unseen')
-            ax.hist(NN_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'blue', label = 'NN')
-            ax.hist(PGNN1_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'red', label = 'PGNN-1')
-            ax.hist(PGNN2_80.predict(X_unseen_80), bins = nbins, alpha = alp2, histtype = 'stepfilled', density = False, color = 'green', label = 'PGNN-2')
-            ax.set_ylabel("Count")
-            ax.set_xlabel("Y")
-            ax.minorticks_on()
-            ax.set_ylim(0, 250)
-            ax.set_xlim(-2,2)
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_largest_80hist.pdf")
-
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_distribution"+file_loc_string+".pdf")
+    # stress_test_distribution_x('_random', 'test_frac')
+    # stress_test_distribution_x('_y_mean', 'remove_mean')
+    # stress_test_distribution_x('_y_smallest', 'remove_smallest')
+    # stress_test_distribution_x('_y_largest', 'remove_largest')
+    # stress_test_distribution_x('_z_mean', 'r_z_mean')
+    # stress_test_distribution_x('_z_smallest', 'r_z_smallest')
+    # stress_test_distribution_x('_z_largest', 'r_z_largest')
+    # stress_test_distribution_x('_theta_mean', 'r_theta_mean')
+    # stress_test_distribution_x('_theta_smallest', 'r_theta_smallest')
+    # stress_test_distribution_x('_theta_largest', 'r_theta_largest')  
+    
     def remove_x(file_loc_string, data_kw):
         tfs = np.arange(0.1,1,0.1)
     
@@ -1555,7 +773,7 @@ if __name__ == '__main__':
         save_obj(to_save, 'remove'+ file_loc_string + '_data')
     
         
-    
+    #To run stress test ------------------------------------------------------
     #remove_x('_random', 'test_frac')
     #remove_x('_y_mean', 'remove_mean')
     #remove_x('_y_smallest', 'remove_smallest')
@@ -1567,460 +785,117 @@ if __name__ == '__main__':
     #remove_x('_theta_smallest', 'r_theta_smallest')
     #remove_x('_theta_largest', 'r_theta_largest')
 
-
-
-"""
-
-if plotting != 0:
-    
-
-    
-    
-    
-    #validation against completely unseen data
-    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_highZ.csv"
-    val_highZ = pd.read_csv(fn_val_highZ, header = None)
-    val_highZ = val_highZ.values
-    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical_val_lowZ.csv"
-    val_lowZ = pd.read_csv(fn_val_lowZ, header = None)
-    val_lowZ = val_lowZ.values
-    
-    # split into input (X) and output (Y) variables
-    X_val_highZ = val_highZ[:,[2,3]]
-    y_val_highZ = val_highZ[:,4]/1000/(250**(1/3))
-    y_val_highZ = y_val_highZ.reshape(len(y_val_highZ),1)
-    # split into input (X) and output (Y) variables
-    X_val_lowZ = val_lowZ[:,[2,3]]
-    y_val_lowZ = val_lowZ[:,4]/1000/(5**(1/3))
-    y_val_lowZ = y_val_lowZ.reshape(len(y_val_lowZ),1)
-    
-    
-    if scaling_input == 1:
-        X_val_highZ = scaler_x.transform(X_val_highZ)
-        X_val_lowZ = scaler_x.transform(X_val_lowZ)
-    else:
-        pass
-    
-    fig, [ax, ax1] = plt.subplots(1,2, figsize = (6,3))
-    ax.plot(theta, y_val_lowZ, 'k', label = 'CFD')
-    ax.plot(theta, scaler_y.inverse_transform(model.predict(X_val_lowZ).reshape(200,1)), 'r', label = 'model')   
-    ax.set_title("Z = 0.17 m/kg^{1/3}")
-    ax.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-    ax.set_xlabel('theta', fontsize='x-small')
-    ax.set_xlim(0,80)
-    ax.minorticks_on()
-    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    
-    ax1.plot(theta, y_val_highZ, 'k', label = 'CFD')
-    ax1.plot(theta, scaler_y.inverse_transform(model.predict(X_val_highZ).reshape(200,1)), 'r', label = 'model')   
-    ax1.set_title("Z = 0.40 m/kg^{1/3}")
-    ax1.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
-    ax1.set_xlabel('theta', fontsize='x-small')
-    ax1.set_xlim(0,80)
-    ax1.minorticks_on()
-    ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-    ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-    plt.tight_layout()    
-    
-    #peak I vs Z
-    fig, ax = plt.subplots(2, 3, figsize=(8,6))
-    fax = ax.ravel()
-    angles = [0, 20, 30, 40, 60, 80]
-    for i in range(len(angles)):
-        n = 50 #resolution of predictions
-        sampleZ = np.linspace(0, 1, n).reshape(n,1)
-        if angles[i] == 0:
-            idtheta = 0
-            
-        elif angles[i] == 80:
-            idtheta = 199
-        else:
-            idtheta = np.where(np.linspace(0,80,200) > angles[i])[0][0]
-        sampleZ = np.concatenate((sampleZ, np.zeros((n , 1)) + X_scaled_og[idtheta,1]), axis = 1) 
+    def remove_x_graph(file_loc_string, data_kw, axlims):
         
-        fax[i].plot(sampleZ[:,0], 
-                    scaler_y.inverse_transform(model.predict(sampleZ).reshape(len(sampleZ),1)),
-                    'k', label='NN')
-        fax[i].scatter(X_scaled_og[np.where(X[:,1]==X[idtheta,1]),0], y_og[np.where(X[:,1]==X[idtheta,1]),0], marker = 's',facecolors = 'white', edgecolors='k', s = 10., label = 'CFD data')
-        fax[i].minorticks_on()
-        fax[i].grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
-        fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        fax[i].set_title(str(angles[i]) + "degrees")
-        fax[i].set_xlabel("Normalised Z")
-        fax[i].set_ylabel("specific impulse (MPa.ms)")                 
-        plt.tight_layout()
-
-#Exploratory Contour plot
-z = np.linspace(X.min(0)[0], X.max(0)[0], 200)
-theta = np.linspace(0,80,200)
-[z1, theta1] = np.meshgrid(z,theta)
-z = z1.flatten('F')
-z = z.reshape(len(z), 1)
-theta = theta1.flatten('F')
-theta = theta.reshape(len(theta), 1)
-to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
-pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
-pred = pred.reshape(np.shape(z1), order = 'F')
-fig0, ax = plt.subplots(1,1, figsize=(5,5))
-CS = ax.contourf(theta1, z1, pred, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-#ax.clabel(CS, inline=1, fontsize=10)
-cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
-cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-ax.set_xlabel('Angle of incidence (degrees)')
-plt.tight_layout()
-
-
-#Comparison Contour 
-z = np.linspace(X.min(0)[0], X.max(0)[0], 18)
-theta = np.linspace(0,80,200)
-[z1, theta1] = np.meshgrid(z,theta)
-z = z1.flatten('F')
-z = z.reshape(len(z), 1)
-theta = theta1.flatten('F')
-theta = theta.reshape(len(theta), 1)
-to_pred = scaler_x.transform(np.concatenate((z, theta), axis = 1))
-pred = scaler_y.inverse_transform(model.predict(to_pred).reshape(len(to_pred),1))
-pred = pred.reshape(np.shape(z1), order = 'F')
-residuals = pred-y.reshape(np.shape(pred))
-                           
-fig0, ax = plt.subplots(1,1, figsize=(5,5))
-CS = ax.contourf(theta1, z1, residuals, levels = 10, cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-#ax.clabel(CS, inline=1, fontsize=10)
-cbar = fig0.colorbar(CS, format='%.1f') #ticks = np.linspace(0,25,6)
-cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
-ax.set_xlabel('Angle of incidence (degrees)')
-plt.tight_layout()
-
-#Histogram of residuals
-fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
-ax.hist(residuals.flatten('F'), bins = 20, density = True)
-ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
-
-#Histogram of residuals
-fig, ax = plt.subplots(1,1, figsize=(5,5), tight_layout = True)
-ax.hist(res[0].flatten('F'), bins = 20, density = True)
-ax.hist(res[1].flatten('F'), bins = 20, density = True)
-ax.yaxis.set_major_formatter(PercentFormatter(xmax=1))
-
-
-    def extrapolate_networks_downwards(load = 0):
-        rf, rl = 4, 4
-        if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removefirst = rf, removelast = rl)
-            model.save('obj/NNmodel_extrapolate.h5')
-            NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(NN, 'NN_extrapolate')   
-            
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[6], removefirst = rf, removelast = rl)
-            model.save('obj/PGNNmodel_extrapolate.h5')
-            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN_extrapolate')
-            
-            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, rf,rl, 0.10)
-            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
-            svr_rbf = SVR(kernel='rbf')
-            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
-            opt = clf.fit(X_train, y_train.reshape(len(y_train)))
-            
-            reg = GradientBoostingRegressor(n_estimators = 2000)
-            reg_fit = reg.fit(X_train, y_train.reshape(len(y_train)))
-            models = {'gbr':reg_fit, 'svr':opt}
-            save_obj(models, 'svr_gbr_extrapolate')
-            
-        else:
-            NN = load_obj('NN_extrapolate')
-            PGNN = load_obj('PGNN_extrapolate')
-            models = load_obj('svr_gbr_extrapolate')
-            
-            import tensorflow as tf
-            load_NN = tf.keras.models.load_model('obj/NNmodel_extrapolate.h5', compile = False)
-            load_PGNN = tf.keras.models.load_model('obj/PGNNmodel_extrapolate.h5', 
-                                                    custom_objects={'loss':combined_loss}, compile = False)
+        rmseLim, scatter20Lim, scatter80Lim = axlims
         
-            #Dataset plots 1
-            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, remove_last = rl, remove_first = rf, test_frac=0.05)
-            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
-            fax = ax.ravel()
-            for i in range(0,9):
-                exp = 200 * i
-                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_svr = models['svr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_gbr = models['gbr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                theta = np.linspace(0,80,200).reshape(200,1)    
-                #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
-                #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
-                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'blue', label = 'NN')
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
-                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
-                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
-                fax[i].set_xlabel('Theta', fontsize='x-small')
-                fax[i].set_xlim(0,80)
-                fax[i].minorticks_on()
-                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = fax[0].get_legend_handles_labels()
-            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_1.pdf")
-            
-            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
-            fax = ax.ravel()            
-            for i in range(0,9):
-                exp = 200 * (i+9)
-                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_svr = models['svr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_gbr = models['gbr'].predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                theta = np.linspace(0,80,200).reshape(200,1)   
-                #fax[i].plot(theta, scaler_y.inverse_transform(pred_svr), 'b--', label = 'SVR')
-                #fax[i].plot(theta, scaler_y.inverse_transform(pred_gbr), 'g--', label = 'GBR')
-                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'blue', label = 'NN')
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
-                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
-                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
-                fax[i].set_xlabel('Theta', fontsize='x-small')
-                fax[i].set_xlim(0,80)
-                fax[i].minorticks_on()
-                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = fax[0].get_legend_handles_labels()
-            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_2.pdf")
-            
-            #contour residual plots
-            z = np.linspace(0, 1, 18)
-            theta = np.linspace(0,1,200)
-            [z1, theta1] = np.meshgrid(z,theta)
-            z = z1.flatten('F')
-            z = z.reshape(len(z), 1)
-            theta = theta1.flatten('F')
-            theta = theta.reshape(len(theta), 1)
-            to_pred = np.concatenate((z, theta), axis = 1)
-            
-            pred = scaler_y.inverse_transform(load_NN.predict(to_pred).reshape(len(to_pred),1))
-            pred = pred.reshape(np.shape(z1), order = 'F')
-            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
-            
-            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,15,10), cmap = plt.cm.magma_r) 
-            #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.1f', ticks = np.linspace(0,15,6))
-            cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
-            ax.set_ylim(0,0.3)
-            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
-            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1.pdf")
-            
-            pred = scaler_y.inverse_transform(load_PGNN.predict(to_pred).reshape(len(to_pred),1))
-            pred = pred.reshape(np.shape(z1), order = 'F')
-            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
-            
-            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,15,10), cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-            #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.1f',ticks = np.linspace(0,15,6)) 
-            cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
-            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
-            ax.set_ylim(0,0.3)
-            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
-            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2.pdf")
-            
-            
-            pred = scaler_y.inverse_transform(load_NN.predict(to_pred).reshape(len(to_pred),1))
-            pred = pred.reshape(np.shape(z1), order = 'F')
-            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
-            res = (res/(y_og.reshape(np.shape(pred), order = 'F')))*100
-            
-            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,120,10), cmap = plt.cm.magma_r) 
-            #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.0f', ticks = np.linspace(0,120,7))
-            cbar.ax.set_ylabel('Percentage error (%)', fontsize = 'x-small')
-            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
-            ax.set_ylim(0,0.3)
-            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
-            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_1_pc.pdf")
-            
-            pred = scaler_y.inverse_transform(load_PGNN.predict(to_pred).reshape(len(to_pred),1))
-            pred = pred.reshape(np.shape(z1), order = 'F')
-            res = abs(pred-y_og.reshape(np.shape(pred), order = 'F'))
-            res = (res/(y_og.reshape(np.shape(pred), order = 'F')))*100
-            
-            fig0, ax = plt.subplots(1,1, figsize=(2.75,2.5), tight_layout = True)
-            CS = ax.contourf(theta1, z1, res, levels = np.linspace(0,120,10), cmap = plt.cm.magma_r) # levels = np.linspace(0,25,50)
-            #ax.clabel(CS, inline=1, fontsize=10)
-            cbar = fig0.colorbar(CS, format='%.0f', ticks = np.linspace(0,120,7)) 
-            cbar.ax.set_ylabel('Percentage error (%)', fontsize = 'x-small')
-            ax.set_ylabel('Normalised scaled distance', fontsize = 'x-small')
-            ax.set_ylim(0,0.3)
-            ax.set_xlabel('Normalised incident angle ', fontsize = 'x-small')
-            fig0.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_extrapolate_residual_2_pc.pdf")
-            
-            
-        def interpolate_networks(load = 0):
-        remove_every = 3
-        if load != 0:
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = 0, removeevery = remove_every)
-            model.save('obj/NNmodel_interpolate.h5')
-            NN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(NN, 'NN_interpolate')   
-            
-            hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,1,10)[6], removeevery = remove_every)
-            model.save('obj/PGNNmodel_interpolate.h5')
-            PGNN = {'hist':hists, 'data':data, 'test_scores':test_scores}
-            save_obj(PGNN, 'PGNN_interpolate')
-                        
-        else:
-            NN = load_obj('NN_interpolate')
-            PGNN = load_obj('PGNN_interpolate')
-
-            
-            import tensorflow as tf
-            load_NN = tf.keras.models.load_model('obj/NNmodel_interpolate.h5', compile = False)
-            load_PGNN = tf.keras.models.load_model('obj/PGNNmodel_interpolate.h5', 
-                                                    custom_objects={'loss':combined_loss}, compile = False)
+        tfs = np.arange(0.1,1,0.1)
+   
+        all_data = load_obj('remove'+file_loc_string+'_data')
+        all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
+        all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
+        all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
+        all_data['PGNN_12_test_scores']= np.asarray(all_data['PGNN_12_test_scores'])
         
-            #Dataset plots 1
-            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1,0,0, test_frac=0.05)
-            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
-            fax = ax.ravel()
-            for i in range(0,9):
-                exp = 200 * i
-                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
+        
+        ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+        ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)
+        
+        #NN
+        err = np.stack((all_data['NNtest_scores'][:,:,0].min(1), all_data['NNtest_scores'][:,:,0].max(1)), axis = 1).T
+        err = abs(err - all_data['NNtest_scores'][:,:,0].mean(1))
+        ax.errorbar(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='blue', ls='none', zorder=10)
+        ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,:,0].mean(1), c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN', zorder=20)
+                  
+        offset = (all_data['tfs'][1]- all_data['tfs'][0])* 0.2
 
-                theta = np.linspace(0,80,200).reshape(200,1)    
-                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
-                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
-                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
-                fax[i].set_xlabel('Theta', fontsize='x-small')
-                fax[i].set_xlim(0,80)
-                fax[i].minorticks_on()
-                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = fax[0].get_legend_handles_labels()
-            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_interpolate_1.pdf")
-            
-            fig, ax = plt.subplots(3, 3, figsize=(6,6), tight_layout = True)
-            fax = ax.ravel()            
-            for i in range(0,9):
-                exp = 200 * (i+9)
-                pred_NN = load_NN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                pred_PGNN = load_PGNN.predict(X_scaled_og[np.arange(0,200,1)+exp,:]).reshape(200,1)
-                theta = np.linspace(0,80,200).reshape(200,1)   
-                fax[i].plot(theta, y_og[np.arange(0,200,1)+exp], 'k', label = 'CFD')                 
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_NN), 'r', label = 'NN')
-                fax[i].plot(theta, scaler_y.inverse_transform(pred_PGNN), 'r--', label = 'PGNN')
-                fax[i].set_title("Z ="+str(np.round(scaler_x.inverse_transform(X_scaled_og[exp].reshape(1,2))[0][0],3)), fontsize='x-small')
-                fax[i].set_ylabel('Peak specific impulse (MPa.ms)', fontsize='x-small')
-                fax[i].set_xlabel('Theta', fontsize='x-small')
-                fax[i].set_xlim(0,80)
-                fax[i].minorticks_on()
-                fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-                fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = fax[0].get_legend_handles_labels()
-            fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_interpolate_2.pdf")
+        #PGNN_12
+        err = np.stack((all_data['PGNN_12_test_scores'][:,:,0].min(1), all_data['PGNN_12_test_scores'][:,:,0].max(1)), axis = 1).T
+        err = abs(err - all_data['PGNN_12_test_scores'][:,:,0].mean(1))
+        ax.errorbar(all_data['tfs']+ 1*offset, all_data['PGNN_12_test_scores'][:,:,0].mean(1), yerr = err, capsize = 3, capthick = 0.5, c='red', ls='none', zorder=10)
+        ax.scatter(all_data['tfs']+1*offset, all_data['PGNN_12_test_scores'][:,:,0].mean(1), c = 'red', marker="d", edgecolor = 'k', s=10,label = 'PGNN', zorder=20)
+        
+        
+        ax.set_yscale('log')
+        ax.set_ylabel('Test RMSE', fontsize='x-small')
+        ax.set_xlabel('Holdout data fraction', fontsize='x-small')
+        ax.set_xlim(0,1)
+        ax.set_ylim(rmseLim)
+        ax.minorticks_on()
+   
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='lower right', prop={'size':5}) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+".pdf")
+        
+        #unseen evaluation
+        import tensorflow as tf
 
-            def remove_largest(load = 0):
-        tfs = np.arange(0.05,0.4,0.05)
-        if load != 0 :
-            
-            X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.10)
-            #grid search svr
-            parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
-            svr_rbf = SVR(kernel='rbf')
-            clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
-            opt = clf.fit(X_scaled, y_scaled.reshape(3600))
-            
-            svr_val_rmse, svr_test_rmse = [],[]
-            reg_val_rmse, reg_test_rmse = [],[]
-            NNhist, NNtest_scores = [], []
-            PGNNhist, PGNNtest_scores = [],[]
-            for tf in tfs: 
-                X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, 0,0, 0.01, remove_largest = tf)               
+        NN_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/NN20.h5', compile = False)
+        #PGNN1_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
+        #PGNN2_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
+        PGNN12_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_12_20.h5', custom_objects={'loss':combined_loss}, compile = False)
+        X_scaled, y_scaled_20, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.2})
+        
+        NN_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/NN80.h5', compile = False)
+        #PGNN1_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
+        #PGNN2_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
+        PGNN12_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_12_80.h5', custom_objects={'loss':combined_loss}, compile = False)
+        X_scaled, y_scaled_80, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.8})
+    
+        
+        fig_scatter20, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        alp = 0.5
+        ax.scatter(y_unseen_20, NN_20.predict(X_unseen_20), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
+        ax.scatter(y_unseen_20, PGNN12_20.predict(X_unseen_20), alpha = alp, c = 'red', marker="d",  s=5,label = 'PGNN-12', zorder=20)
+        text_NN = "NN $= {:.3f}$".format(r2_score(y_unseen_20,NN_20.predict(X_unseen_20) ) )
+        text_PGNN12 = "PGNN $= {:.3f}$".format(r2_score(y_unseen_20,PGNN12_20.predict(X_unseen_20) ) )
+        ax.text(0.05, 0.9, "$R^2$", fontsize = 'xx-small', transform=ax.transAxes)
+        ax.text(0.05, 0.8, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
+        ax.text(0.05, 0.7, text_PGNN12, fontsize = 'xx-small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.set_ylim(scatter20Lim)
+        ax.set_xlim(scatter20Lim)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_20.pdf")
+       
+        
+        fig_scatter80, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
+        ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
+        ax.scatter(y_unseen_80, PGNN12_80.predict(X_unseen_80), alpha = alp, c = 'red', marker="d",  s=5,label = 'PGNN-12', zorder=20)
+        text_NN = "NN $= {:.3f}$".format(r2_score(y_unseen_80,NN_80.predict(X_unseen_80) ) )
+        text_PGNN2 = "PGNN $= {:.3f}$".format(r2_score(y_unseen_80,PGNN12_80.predict(X_unseen_80) ) )
+        ax.text(0.05, 0.9, "$R^2$", fontsize = 'xx-small', transform=ax.transAxes)
+        ax.text(0.05, 0.8, text_NN, fontsize = 'xx-small', transform=ax.transAxes)
+        ax.text(0.05, 0.7, text_PGNN12, fontsize = 'xx-small', transform=ax.transAxes)
+        ax.set_ylabel('Predicted response')
+        ax.set_xlabel('Actual response')
+        ax.set_ylim(scatter80Lim)
+        ax.set_xlim(scatter80Lim)
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
                 
-                cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
-                
-                svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
-                svr_n_scores = cross_val_score(svr_rbf, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
-                svr_val_rmse.append(abs(svr_n_scores) ** 0.5)
-                svr_rbf.fit(X_train, y_train.reshape(len(y_train)))
-                error = svr_rbf.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
-                error = error**2
-                svr_test_rmse.append(np.mean(error)**0.5)
-                    
-                
-                reg = GradientBoostingRegressor(n_estimators = 2000)
-                reg_n_scores = cross_val_score(reg, X_train, y_train.reshape(len(y_train)), scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
-                reg_n_scores_rmse = abs(reg_n_scores) ** 0.5
-                reg_val_rmse.append(abs(reg_n_scores) ** 0.5)
-                reg.fit(X_train, y_train.reshape(len(y_train)))
-                error = reg.predict(X_unseen).reshape(len(X_unseen),1) - y_unseen
-                error = error**2
-                reg_test_rmse.append(np.mean(error)**0.5)      
-            
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
-                NNhist.append(hists)
-                NNtest_scores.append(test_scores)
-    
-                hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001,  lamda1 = np.logspace(-2,1,10)[6])
-                PGNNhist.append(hists)
-                PGNNtest_scores.append(test_scores)
-            
-            
-            to_save = {'svr_val_rmse':svr_val_rmse, 'svr_test_rmse':svr_test_rmse, 
-                       'reg_val_rmse':reg_val_rmse, 'reg_test_rmse':reg_test_rmse,
-                       'NNhist':NNhist, 'NNtest_scores':NNtest_scores,
-                       'PGNNhist':PGNNhist, 'PGNNtest_scores':PGNNtest_scores,
-                       'tfs':tfs}
-            save_obj(to_save, 'HoldoutData_nonuniform')
-        
-        else:
-            all_data = load_obj('HoldoutData_nonuniform')
-            all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
-            all_data['PGNNtest_scores_additional_mse'] = np.asarray(all_data['PGNNtest_scores'])[:,:,-1]
-            all_data['PGNNtest_scores']= np.asarray(all_data['PGNNtest_scores'])[:,:,0]
-            
-            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-            ax.scatter(all_data['tfs'], all_data['svr_test_rmse'], c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR')
-            ax.scatter(all_data['tfs'], all_data['reg_test_rmse'], c = 'green', marker="D", edgecolor = 'k', s=10, label = 'GBR')
-            ax.scatter(all_data['tfs'], all_data['NNtest_scores'][:,-1], c = 'blue', marker="o", edgecolor = 'k', s=10, label = 'NN')
-            ax.scatter(all_data['tfs'], all_data['PGNNtest_scores'][:,-2], c = 'red', marker="s", edgecolor = 'k', s=10,label = 'PGNN')
-            ax.set_ylabel('Test RMSE', fontsize='x-small')
-            ax.set_xlabel('Holdout data fraction', fontsize='x-small')
-            #ax.set_xlim(0,80)
-            ax.minorticks_on()
-            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)   
-            handles, labels = ax.get_legend_handles_labels()
-            ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_holdout_fraction_performance_nonuniform.pdf")       
-
-    # #Testing extrapolation
-    # if remove_last != 0:
-    #     X_scaled, y_scaled = X_scaled[:int(-200*remove_last),:], y_scaled[:int(-200*remove_last),:]
-    # else:
-    #     pass
-    
-    # if remove_first != 0:
-    #     X_scaled, y_scaled = X_scaled[int(200*remove_first)::,:], y_scaled[int(200*remove_first)::,:]
-    # else:
-    #     pass
-    
-
-"""
 
 
-
+    # remove_x_graph('_random', 'test_frac', [(10**-3, 6*10**-2), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_y_mean', 'remove_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_y_smallest', 'remove_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_y_largest', 'remove_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_z_mean', 'r_z_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_z_smallest', 'r_z_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_z_largest', 'r_z_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_theta_mean', 'r_theta_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_theta_smallest', 'r_theta_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
+    # remove_x_graph('_theta_largest', 'r_theta_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
 
 
 
