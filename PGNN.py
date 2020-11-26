@@ -349,24 +349,26 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None,
 
 if __name__ == '__main__':	
     def datatransformgraphs():
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0, 0, 0.01, remove_every=None, remove_largest = None)
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0, 0, 0.01)
         #Data transformation
-        fig, [ax, ax1] = plt.subplots(1,2, figsize = (4,2), sharey = True, tight_layout = True)
-        ax.hist(y_og, bins = 25, density = True)
+        fig, [ax, ax1] = plt.subplots(1,2, figsize = (3.3,1.8), sharey = True, tight_layout = True)
+        ax.hist(y_og, bins = 25, histtype = 'stepfilled', color = 'black', density = True)
         ax.set_ylabel("Count (density)")
         ax.set_xlabel("Y")
-        ax.set_ylim(0,0.6)
+        ax.set_ylim(0,0.5)
+        ax.set_xlim(0,25)
+        ax.set_xticks(np.linspace(0,25,6))
+        ax.set_yticks(np.linspace(0,0.5,6))
         ax.minorticks_on()
-        #ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        #ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-        ax1.hist(y_scaled, bins = 25, density = True)
-        ax1.set_xlabel("Y")
+        
+        ax1.hist(y_scaled, bins = 25, histtype = 'stepfilled', color = 'black', density = True)
+        ax1.set_xlabel("Y (scaled)")
         ax1.minorticks_on()
-        ax1.set_ylim(0,0.6)
-        #ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
-        #ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        ax1.set_ylim(0,0.5)
+        ax1.set_xlim(-2,2)
+        ax1.set_xticks(np.linspace(-2,2,6))
+        ax1.set_yticks(np.linspace(0,0.5,6))
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_datatransform.pdf")
-    
     
     
     
@@ -390,28 +392,31 @@ if __name__ == '__main__':
             RMSE_10, RMSE_50, RMSE_100 = np.stack(RMSE[0:6]).T, np.stack(RMSE[6:12]).T, np.stack(RMSE[12::]).T
             RMSE_10, RMSE_50, RMSE_100 = RMSE_10**0.5, RMSE_50**0.5, RMSE_100**0.5
         
+        step = 0.5
         fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
-        ax.scatter(batch_size, RMSE_10.mean(0), c = 'blue', marker="s", edgecolor = 'k', s=10, label = '10', zorder=20)
+        ax.scatter(np.asarray(batch_size)-step, RMSE_10.mean(0), c = 'blue', marker="s", edgecolor = 'k', s=10, label = '10', zorder=20)
         err = np.stack((RMSE_10.min(0).reshape(1, 6), RMSE_10.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_10.mean(0))
-        ax.errorbar(batch_size, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue', zorder=10)
+        ax.errorbar(np.asarray(batch_size)-step, RMSE_10.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='blue', zorder=10)
         
         
-        ax.scatter(batch_size, RMSE_50.mean(0), c = 'red', marker="D", edgecolor = 'k', s=10,  label = '50', zorder=20)
+        ax.scatter(np.asarray(batch_size)-step, RMSE_50.mean(0), c = 'red', marker="D", edgecolor = 'k', s=10,  label = '50', zorder=20)
         err = np.stack((RMSE_50.min(0).reshape(1, 6), RMSE_50.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_50.mean(0))
-        ax.errorbar(batch_size, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red', zorder=10)
+        ax.errorbar(np.asarray(batch_size)-step, RMSE_50.mean(0), yerr = err, capsize = 3, capthick = 0.5, c='red', zorder=10)
         
-        ax.scatter(batch_size, RMSE_100.mean(0), c = 'gray', marker="o", edgecolor = 'k', s=10,  label = '100', zorder=20)
+        ax.scatter(np.asarray(batch_size)-step, RMSE_100.mean(0), c = 'gray', marker="o", edgecolor = 'k', s=10,  label = '100', zorder=20)
         err = np.stack((RMSE_100.min(0).reshape(1, 6), RMSE_100.max(0).reshape(1, 6)), axis = 1).reshape(2,6)
         err = abs(err - RMSE_100.mean(0))
-        ax.errorbar(batch_size, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black', zorder=10)
+        ax.errorbar(np.asarray(batch_size)-step, RMSE_100.mean(0), yerr = err, capsize = 3,capthick = 0.5, c='black', zorder=10)
         
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, title = 'No. epochs', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
         ax.minorticks_on()
-        ax.set_xlim(0,120)
+        ax.set_xlim(0,100)
         ax.set_ylim(0,0.2)
+        ax.set_xticks(np.linspace(0,100,5))
+        ax.set_yticks(np.linspace(0,0.2, 5))
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0) 
         ax.set_xlabel('Batch Size')
@@ -442,7 +447,9 @@ if __name__ == '__main__':
         l = sns.pointplot(data = score, markers = 's', capsize=.2, errwidth = 0.5, color='black', join = False, ax = ax)
         plt.setp(l.get_xticklabels(), rotation=30)
         ax.minorticks_on()
-        ax.set_ylim(0,0.16)
+        lim = 0.14
+        ax.set_ylim(0,0.14)
+        ax.set_yticks(np.linspace(0, lim, 7))
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         ax.set_xlabel('Optimizer')
@@ -511,7 +518,7 @@ if __name__ == '__main__':
         ax.set_ylabel('Test RMSE')                  
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_dropout_NN.pdf")
 
-    def performance(load = 0):
+    def performance_NN(load = 0):
         if load != 0:
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001)
             model.save('obj/NNmodel')
@@ -519,27 +526,30 @@ if __name__ == '__main__':
             save_obj(NN, 'NN')  
         else:
             NN = load_obj('NN')
-            fig, ax = plt.subplots(2, 2, figsize=(4,4), tight_layout = True)
+            fig, ax = plt.subplots(1, 4, figsize=(6,1.8), tight_layout = True)
             fax = ax.ravel()
             for i in range(0,len(NN['hist'])):
-                fax[i].plot(NN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
-                fax[i].plot(NN['hist'][i]['loss'], 'k', label = 'Training set')
+                fax[i].plot(NN['hist'][i]['val_loss'], 'k--', label = 'Validation')
+                fax[i].plot(NN['hist'][i]['loss'], 'k', label = 'Training')
                 fax[i].minorticks_on()
                 fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
                 fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
                 fax[i].set_xlim(0,50)
+                fax[i].set_xticks([0,25,50])
                 fax[i].set_xlabel('Epoch')
-                fax[i].set_ylabel('Loss')  
-                if i == 0:                    
+                 
+                if i == 0:     
+                    fax[i].set_ylabel('Loss') 
+                    fax[i].set_yticks([0, 0.2, 0.4, 0.6])
                     handles, labels = fax[i].get_legend_handles_labels()
-                    fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+                    fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
                 else:
-                    pass
+                    fax[i].set_yticks([0, 0.02,0.04,0.06])
                 
-            fax[0].set_ylim(0, 0.7)
-            fax[1].set_ylim(0, 0.05)
-            fax[2].set_ylim(0, 0.05)
-            fax[3].set_ylim(0, 0.05)
+            fax[0].set_ylim(0, 0.6)
+            fax[1].set_ylim(0, 0.06)
+            fax[2].set_ylim(0, 0.06)
+            fax[3].set_ylim(0, 0.06)
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
 
             import tensorflow as tf
@@ -602,7 +612,7 @@ if __name__ == '__main__':
 
 
 
-    def PGNN12performance(load = 0):
+    def performance_PGNN(load = 0):
         if load != 0:
             hists, model, data, test_scores = NN_train_test(50, 20, 'Adam', learn_rate = 0.001, lamda1 = np.logspace(-2,2,5)[-1], lamda2 = np.logspace(-2,2,5)[1])
             model.save('obj/PGNN_12_model.h5')
@@ -664,7 +674,7 @@ if __name__ == '__main__':
         fs = (3.3, 1.8)
         histylim = 200
         
-        fig, [ax1, ax] = plt.subplots(1,2, figsize = fs, tight_layout = True)
+        fig, [ax, ax1] = plt.subplots(1,2, figsize = fs, tight_layout = True)
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.5})
         ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
         ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
@@ -676,7 +686,9 @@ if __name__ == '__main__':
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
         
-        ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta])
+        hist = ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.magma)
+        cbar = plt.colorbar(hist[-1], ax = ax1)
+        cbar.ax.set_ylabel("Count")
         ax1.set_xlabel('Z')
         ax1.set_ylabel(r'$\theta$')
         ax1.set_xlim(0, 1)
@@ -785,19 +797,19 @@ if __name__ == '__main__':
     #remove_x('_theta_smallest', 'r_theta_smallest')
     #remove_x('_theta_largest', 'r_theta_largest')
 
-    def remove_x_graph(file_loc_string, data_kw, axlims):
+    def remove_x_rmse_graph(file_loc_string, data_kw, axlims):
         
-        rmseLim, scatter20Lim, scatter80Lim = axlims
+        rmseLim = axlims
         
         tfs = np.arange(0.1,1,0.1)
    
-        all_data = load_obj('remove'+file_loc_string+'_data')
+        all_data = load_obj('remove_'+file_loc_string+'_data')
         all_data['NNtest_scores'] = np.asarray(all_data['NNtest_scores'])
         all_data['PGNN_1_test_scores']= np.asarray(all_data['PGNN_1_test_scores'])
         all_data['PGNN_2_test_scores']= np.asarray(all_data['PGNN_2_test_scores'])
         all_data['PGNN_12_test_scores']= np.asarray(all_data['PGNN_12_test_scores'])
         
-        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        fig, ax = plt.subplots(1,1, figsize = (2.3,2.3), tight_layout = True)
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0)
         
@@ -829,22 +841,33 @@ if __name__ == '__main__':
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='lower right', prop={'size':5}) 
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+".pdf")
+
+    # remove_x_rmse_graph('y_smallest', 'remove_smallest', (10**-3, 6*10**0)) 
+    # remove_x_rmse_graph('z_largest', 'r_z_largest', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('theta_largest', 'r_theta_largest', (10**-3, 6*10**0))
+    
+    # remove_x_rmse_graph('y_largest', 'remove_largest', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('z_smallest', 'r_z_smallest', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('theta_smallest', 'r_theta_smallest', (10**-3, 6*10**0))
+    
+    # remove_x_rmse_graph('y_mean', 'remove_mean', (10**-3, 6*10**0))       
+    # remove_x_rmse_graph('z_mean', 'r_z_mean', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('theta_mean', 'r_theta_mean', (10**-3, 6*10**0))
+    
+    # remove_x_rmse_graph('random', 'test_frac', (10**-3, 6*10**-2))
+
+
+    def remove_x_20_80graphs(file_loc_string, data_kw, axlims):
+        scatter20Lim, scatter80Lim = axlims
         
         #unseen evaluation
         import tensorflow as tf
-
         NN_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/NN20.h5', compile = False)
-        #PGNN1_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_1_20.h5', custom_objects={'loss':combined_loss}, compile = False)
-        #PGNN2_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_2_20.h5', custom_objects={'loss':combined_loss}, compile = False)
         PGNN12_20 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_12_20.h5', custom_objects={'loss':combined_loss}, compile = False)
         X_scaled, y_scaled_20, X_train, X_unseen_20, y_train, y_unseen_20, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.2})
-        
         NN_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/NN80.h5', compile = False)
-        #PGNN1_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_1_80.h5', custom_objects={'loss':combined_loss}, compile = False)
-        #PGNN2_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_2_80.h5', custom_objects={'loss':combined_loss}, compile = False)
         PGNN12_80 = tf.keras.models.load_model('obj/remove'+file_loc_string+'/PGNN_12_80.h5', custom_objects={'loss':combined_loss}, compile = False)
         X_scaled, y_scaled_80, X_train, X_unseen_80, y_train, y_unseen_80, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.8})
-    
         
         fig_scatter20, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
         alp = 0.5
@@ -864,8 +887,7 @@ if __name__ == '__main__':
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='lower right', prop={'size':6}) 
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_20.pdf")
-       
+        fig_scatter20.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_20.pdf")
         
         fig_scatter80, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
         ax.scatter(y_unseen_80, NN_80.predict(X_unseen_80), alpha = alp, c = 'blue', marker="o", s=5, label = 'NN', zorder=20)
@@ -882,21 +904,7 @@ if __name__ == '__main__':
         ax.minorticks_on()
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
-                
-
-
-    # remove_x_graph('_random', 'test_frac', [(10**-3, 6*10**-2), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_y_mean', 'remove_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_y_smallest', 'remove_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_y_largest', 'remove_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_z_mean', 'r_z_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_z_smallest', 'r_z_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_z_largest', 'r_z_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_theta_mean', 'r_theta_mean', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_theta_smallest', 'r_theta_smallest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-    # remove_x_graph('_theta_largest', 'r_theta_largest', [(10**-3, 6*10**0), (-2.5, 2.5), (-2.5, 2.5)])
-
+        fig_scatter80.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
 
 
 #Pickling functions
