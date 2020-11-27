@@ -562,8 +562,8 @@ if __name__ == '__main__':
             ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
             ax.set_ylabel('Predicted response')
             ax.set_xlabel('Actual response')
-            #ax.set_xlim(0,1)
-            #ax.set_ylim(0,1)
+            ax.set_xlim(-2,2)
+            ax.set_ylim(-2,2)
             ax.minorticks_on()
             ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
             ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)           
@@ -621,26 +621,28 @@ if __name__ == '__main__':
         else:
             PGNN = load_obj('PGNN_12')
         
-        fig, ax = plt.subplots(2, 2, figsize=(4,4), tight_layout = True)
+        fig, ax = plt.subplots(1, 4, figsize=(6,1.8), tight_layout = True)
         fax = ax.ravel()
         for i in range(0,len(PGNN['hist'])):
-            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation set')
-            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training set')
+            fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation')
+            fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training')
             fax[i].minorticks_on()
             fax[i].grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
             fax[i].grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
             fax[i].set_xlim(0,50)
+            fax[i].set_xticks([0,25,50])
             fax[i].set_xlabel('Epoch')
-            fax[i].set_ylabel('Loss')  
             if i == 0:                    
                 handles, labels = fax[i].get_legend_handles_labels()
-                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
+                fax[i].set_yticks([0, 0.2, 0.4, 0.6])
+                fax[i].set_ylabel('Loss') 
+                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
             else:
-                pass
-        fax[0].set_ylim(0, 0.7)
-        fax[1].set_ylim(0, 0.05)
-        fax[2].set_ylim(0, 0.05)
-        fax[3].set_ylim(0, 0.05)
+                ax[i].set_yticks([0, 0.02,0.04,0.06])
+        fax[0].set_ylim(0, 0.6)
+        fax[1].set_ylim(0, 0.06)
+        fax[2].set_ylim(0, 0.06)
+        fax[3].set_ylim(0, 0.06)
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_12.pdf")
 
         import tensorflow as tf
@@ -669,7 +671,7 @@ if __name__ == '__main__':
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
         nbins = np.histogram_bin_edges(y_scaled, bins = 40)
         nbins_z = np.histogram_bin_edges(X_scaled[:,0], bins = 18)
-        nbins_theta = np.histogram_bin_edges(X_scaled[:,1], bins = 100)
+        nbins_theta = np.histogram_bin_edges(X_scaled[:,1], bins = 200)
         
         fs = (3.3, 1.8)
         histylim = 200
@@ -682,6 +684,7 @@ if __name__ == '__main__':
         ax.set_xlabel("Y")
         ax.minorticks_on()
         ax.set_ylim(0, histylim)
+        ax.set_yticks(np.linspace(0,histylim,3))
         ax.set_xlim(-2,2)
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
@@ -689,10 +692,14 @@ if __name__ == '__main__':
         hist = ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.magma)
         cbar = plt.colorbar(hist[-1], ax = ax1)
         cbar.ax.set_ylabel("Count")
+        cbar.set_ticks(np.linspace(0,1,3))
+        
         ax1.set_xlabel('Z')
         ax1.set_ylabel(r'$\theta$')
         ax1.set_xlim(0, 1)
         ax1.set_ylim(0, 1)
+        ax1.set_xticks(np.linspace(0,1,3))
+        ax1.set_yticks(np.linspace(0,1,3))
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_stresstest_distribution"+file_loc_string+".pdf")
     # stress_test_distribution_x('_random', 'test_frac')
     # stress_test_distribution_x('_y_mean', 'remove_mean')
@@ -905,6 +912,74 @@ if __name__ == '__main__':
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         fig_scatter80.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
+        
+    def finalboxplot():
+        extrap_strings = ['y_smallest', 'z_largest', 'theta_largest',
+        				  'y_largest', 'z_smallest', 'theta_smallest']		  
+        interp_strings = ['y_mean', 'z_mean', 'theta_mean']				  
+        				
+        
+        NNs_extr, PGNNs_extr, svrs_extr, gbrs_extr = [],[],[],[]
+        for i in extrap_strings:
+        					
+        	all_data = load_obj('remove_'+i+'_data')
+        	NNs_extr.append(np.asarray(all_data['NNtest_scores'])[:,:,0].flatten())
+        	PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[:,:,0].flatten())
+        	svrs_extr.append(np.asarray(all_data['svr_test_rmse']).flatten())
+        	gbrs_extr.append(np.asarray(all_data['reg_test_rmse']).flatten())
+        NNs_extr   = np.asarray(NNs_extr).flatten()
+        PGNNs_extr = np.asarray(PGNNs_extr).flatten()
+        svrs_extr  = np.asarray(svrs_extr).flatten()
+        gbrs_extr  = np.asarray(gbrs_extr).flatten()
+        
+        NNs_intr, PGNNs_intr, svrs_intr, gbrs_intr = [],[],[],[]
+        for i in interp_strings:
+        					
+        	all_data = load_obj('remove_'+i+'_data')
+        	NNs_intr.append(np.asarray(all_data['NNtest_scores'])[:,:,0].flatten())
+        	PGNNs_intr.append(np.asarray(all_data['PGNN_12_test_scores'])[:,:,0].flatten())
+        	svrs_intr.append(np.asarray(all_data['svr_test_rmse']).flatten())
+        	gbrs_intr.append(np.asarray(all_data['reg_test_rmse']).flatten())
+        NNs_intr   = np.asarray(NNs_intr).flatten()
+        PGNNs_intr = np.asarray(PGNNs_intr).flatten()
+        svrs_intr  = np.asarray(svrs_intr).flatten()
+        gbrs_intr  = np.asarray(gbrs_intr).flatten()
+        
+        
+        # NNs_overall   = np.concatenate([NNs_intr, NNs_extr])
+        # PGNNs_overall = np.concatenate([NNs_intr, PGNNs_extr])
+        # svrs_overall  = np.concatenate([svrs_intr, svrs_extr])
+        # gbrs_overall  = np.concatenate([gbrs_intr, gbrs_extr])
+        
+        
+        #Create dataframe
+        networks = ['NN', 'PGNN', 'SVR', 'GBR']
+        assessments = ['Extrapolate', 'Interpolate']
+        data = [NNs_extr,   NNs_intr, 
+                PGNNs_extr, PGNNs_intr,
+                svrs_extr,  svrs_intr,
+                gbrs_extr,  gbrs_intr]
+        
+        df = pd.DataFrame(columns = ['Score', 'Network', 'Assessment'])
+        z = 0
+        for i in networks:
+            for j in assessments:
+                    d = {'Score': data[z], "Network": i, "Assessment":j}
+                    new = pd.DataFrame(data = d)      
+                    df = pd.concat([df, new])
+                    z +=1
+        df = df.dropna()
+        
+        
+        g = sns.catplot(x='Assessment', y='Score', hue='Network', data = df, kind = 'box', 
+                        height = 3, aspect=1,
+                        palette =['blue','red', 'grey', 'yellow'], legend=True,
+                        saturation=0.5, fliersize=0.5)
+        g.set(yscale="log")
+        g.despine(right=False, top=False)
+        g.savefig("__Paper\Fig_pubgraph.pdf")
+        
+        
 
 
 #Pickling functions
