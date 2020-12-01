@@ -913,37 +913,61 @@ if __name__ == '__main__':
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         fig_scatter80.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
         
-    def finalboxplot():
+    def finalboxplot(dh):
         extrap_strings = ['y_smallest', 'z_largest', 'theta_largest',
         				  'y_largest', 'z_smallest', 'theta_smallest']		  
         interp_strings = ['y_mean', 'z_mean', 'theta_mean']				  
-        				
+        
+				
         
         NNs_extr, PGNNs_extr, svrs_extr, gbrs_extr = [],[],[],[]
         for i in extrap_strings:
         					
-        	all_data = load_obj('remove_'+i+'_data')
-        	NNs_extr.append(np.asarray(all_data['NNtest_scores'])[:,:,0].flatten())
-        	PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[:,:,0].flatten())
-        	svrs_extr.append(np.asarray(all_data['svr_test_rmse']).flatten())
-        	gbrs_extr.append(np.asarray(all_data['reg_test_rmse']).flatten())
+            all_data = load_obj('remove_'+i+'_data')
+            #All scores
+            NNs_extr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].flatten())
+            PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].flatten())
+            # #Min scores
+            # NNs_extr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].min(1).flatten())
+            # PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].min(1).flatten())  
+            svrs_extr.append(np.asarray(all_data['svr_test_rmse'])[0:dh].flatten())
+            gbrs_extr.append(np.asarray(all_data['reg_test_rmse'])[0:dh].flatten())
+            
+            
         NNs_extr   = np.asarray(NNs_extr).flatten()
         PGNNs_extr = np.asarray(PGNNs_extr).flatten()
         svrs_extr  = np.asarray(svrs_extr).flatten()
         gbrs_extr  = np.asarray(gbrs_extr).flatten()
         
+        # #Taking logs
+        # NNs_extr = np.log10(NNs_extr)
+        # PGNNs_extr = np.log10(PGNNs_extr)
+        # svrs_extr = np.log10(svrs_extr)
+        # gbrs_extr = np.log10(gbrs_extr)
+        
         NNs_intr, PGNNs_intr, svrs_intr, gbrs_intr = [],[],[],[]
         for i in interp_strings:
         					
         	all_data = load_obj('remove_'+i+'_data')
-        	NNs_intr.append(np.asarray(all_data['NNtest_scores'])[:,:,0].flatten())
-        	PGNNs_intr.append(np.asarray(all_data['PGNN_12_test_scores'])[:,:,0].flatten())
-        	svrs_intr.append(np.asarray(all_data['svr_test_rmse']).flatten())
-        	gbrs_intr.append(np.asarray(all_data['reg_test_rmse']).flatten())
+            #All scores
+        	NNs_intr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].flatten())
+        	PGNNs_intr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].flatten())
+            #Min scores
+        	# NNs_intr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].min(1).flatten())
+        	# PGNNs_intr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].min(1).flatten())            
+        	svrs_intr.append(np.asarray(all_data['svr_test_rmse'])[0:dh].flatten())
+        	gbrs_intr.append(np.asarray(all_data['reg_test_rmse'])[0:dh].flatten())
         NNs_intr   = np.asarray(NNs_intr).flatten()
         PGNNs_intr = np.asarray(PGNNs_intr).flatten()
         svrs_intr  = np.asarray(svrs_intr).flatten()
         gbrs_intr  = np.asarray(gbrs_intr).flatten()
+        
+        # #Taking logs
+        # NNs_intr = np.log10(NNs_intr)
+        # PGNNs_intr = np.log10(PGNNs_intr)
+        # svrs_intr = np.log10(svrs_intr)
+        # gbrs_intr = np.log10(gbrs_intr)        
+        
         
         
         # NNs_overall   = np.concatenate([NNs_intr, NNs_extr])
@@ -975,11 +999,11 @@ if __name__ == '__main__':
                         height = 3, aspect=1,
                         palette =['blue','red', 'grey', 'yellow'], legend=True,
                         saturation=0.5, fliersize=0.5)
-        g.set(yscale="log")
+        g.set(yscale="log", ylabel = 'RMSE', title=str(dh*10)+'%')
         g.despine(right=False, top=False)
         g.savefig("__Paper\Fig_pubgraph.pdf")
         
-        
+
 
 
 #Pickling functions
