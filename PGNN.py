@@ -32,6 +32,7 @@ import multiprocessing
 
 params = {'font.family':'serif',
         'axes.labelsize':'small',
+        'axes.titlesize':'large',
         'xtick.labelsize':'x-small',
         'ytick.labelsize':'x-small', 
         'axes.linewidth':0.5,
@@ -999,10 +1000,57 @@ if __name__ == '__main__':
                         height = 3, aspect=1,
                         palette =['blue','red', 'grey', 'yellow'], legend=True,
                         saturation=0.5, fliersize=0.5)
-        g.set(yscale="log", ylabel = 'RMSE', title=str(dh*10)+'%')
+        g.set(yscale="log", ylabel = 'RMSE')
+        #g.set(ylabel = 'log(RMSE)')
         g.despine(right=False, top=False)
-        g.savefig("__Paper\Fig_pubgraph.pdf")
+        #g.savefig("__Paper\Fig_pubgraph.pdf")
+        #g.savefig("potential_thesis_figures\Fig_aggregated_logRMSE_"+str(dh*10)+".pdf")
+        #g.savefig("potential_thesis_figures\Fig_aggregated_RMSE_"+str(dh*10)+".pdf")
+        return df
+def pubtabledata():
+    mean_extr = np.zeros((9,4))
+    mean_intr = np.zeros((9,4))
+    med_extr = np.zeros((9,4))
+    med_intr = np.zeros((9,4))
+    
+    dfs = []
+    for i in range(1,10):
+        dfs.append(finalboxplot(i))
         
+    for i in range(len(mean_extr)):      
+        mean_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean()
+        mean_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+        mean_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+        mean_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+        
+        mean_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
+        mean_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].mean()       
+        mean_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
+        mean_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].mean()  
+        
+        med_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+        med_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+        med_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+        med_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+        
+        med_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+        med_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+        med_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+        med_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+        
+    mean_extr_premium = mean_extr[:,0] - mean_extr[:,1]
+    mean_intr_premium = mean_intr[:,0] - mean_intr[:,1]
+    med_extr_premium = med_extr[:,0] - med_extr[:,1]
+    med_intr_premium = med_intr[:,0] - med_intr[:,1]   
+    
+    
+    
+    #for table
+    mean_extr_tab = np.round(mean_extr * 100, 2)
+    mean_intr_tab = np.round(mean_intr * 100, 2)
+    med_extr_tab = np.round(med_extr * 100, 2)
+    med_intr_tab = np.round(med_intr * 100, 2)
+    
 
 
 
