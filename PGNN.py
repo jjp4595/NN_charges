@@ -850,19 +850,19 @@ if __name__ == '__main__':
         ax.legend(handles, labels, loc='lower right', prop={'size':5}) 
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+".pdf")
 
-    # remove_x_rmse_graph('y_smallest', 'remove_smallest', (10**-3, 6*10**0)) 
-    # remove_x_rmse_graph('z_largest', 'r_z_largest', (10**-3, 6*10**0))
-    # remove_x_rmse_graph('theta_largest', 'r_theta_largest', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('y_smallest', 'remove_smallest', (10**-4, 6*10**0)) 
+    # remove_x_rmse_graph('z_largest', 'r_z_largest', (10**-4, 6*10**0))
+    # remove_x_rmse_graph('theta_largest', 'r_theta_largest', (10**-4, 6*10**0))
     
-    # remove_x_rmse_graph('y_largest', 'remove_largest', (10**-3, 6*10**0))
-    # remove_x_rmse_graph('z_smallest', 'r_z_smallest', (10**-3, 6*10**0))
-    # remove_x_rmse_graph('theta_smallest', 'r_theta_smallest', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('y_largest', 'remove_largest', (10**-4, 6*10**0))
+    # remove_x_rmse_graph('z_smallest', 'r_z_smallest', (10**-4, 6*10**0))
+    # remove_x_rmse_graph('theta_smallest', 'r_theta_smallest', (10**-4, 6*10**0))
     
-    # remove_x_rmse_graph('y_mean', 'remove_mean', (10**-3, 6*10**0))       
-    # remove_x_rmse_graph('z_mean', 'r_z_mean', (10**-3, 6*10**0))
-    # remove_x_rmse_graph('theta_mean', 'r_theta_mean', (10**-3, 6*10**0))
+    # remove_x_rmse_graph('y_mean', 'remove_mean', (10**-4, 6*10**0))       
+    # remove_x_rmse_graph('z_mean', 'r_z_mean', (10**-4, 6*10**0))
+    # remove_x_rmse_graph('theta_mean', 'r_theta_mean', (10**-4, 6*10**0))
     
-    # remove_x_rmse_graph('random', 'test_frac', (10**-3, 6*10**-2))
+    # remove_x_rmse_graph('random', 'test_frac', (10**-4, 6*10**0))
 
 
     def remove_x_20_80graphs(file_loc_string, data_kw, axlims):
@@ -1007,51 +1007,79 @@ if __name__ == '__main__':
         #g.savefig("potential_thesis_figures\Fig_aggregated_logRMSE_"+str(dh*10)+".pdf")
         #g.savefig("potential_thesis_figures\Fig_aggregated_RMSE_"+str(dh*10)+".pdf")
         return df
-def pubtabledata():
-    mean_extr = np.zeros((9,4))
-    mean_intr = np.zeros((9,4))
-    med_extr = np.zeros((9,4))
-    med_intr = np.zeros((9,4))
     
-    dfs = []
-    for i in range(1,10):
-        dfs.append(finalboxplot(i))
+    def pubtabledata():
+        mean_extr = np.zeros((9,4))
+        mean_intr = np.zeros((9,4))
+        med_extr = np.zeros((9,4))
+        med_intr = np.zeros((9,4))
         
-    for i in range(len(mean_extr)):      
-        mean_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean()
-        mean_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
-        mean_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
-        mean_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+        dfs = []
+        for i in range(1,10):
+            dfs.append(finalboxplot(i))
+            
+        for i in range(len(mean_extr)):      
+            mean_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean()
+            mean_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+            mean_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+            mean_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].mean() 
+            
+            mean_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
+            mean_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].mean()       
+            mean_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
+            mean_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].mean()  
+            
+            med_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+            med_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+            med_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+            med_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
+            
+            med_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+            med_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+            med_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+            med_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+            
+        mean_extr_premium = mean_extr[:,0] - mean_extr[:,1]
+        mean_intr_premium = mean_intr[:,0] - mean_intr[:,1]
+        med_extr_premium = med_extr[:,0] - med_extr[:,1]
+        med_intr_premium = med_intr[:,0] - med_intr[:,1]   
         
-        mean_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
-        mean_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].mean()       
-        mean_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].mean() 
-        mean_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].mean()  
         
-        med_extr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
-        med_extr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
-        med_extr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
-        med_extr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Extrapolate')].median()
         
-        med_intr[i,0] = dfs[i][(dfs[i]['Network'] == 'NN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
-        med_intr[i,1] = dfs[i][(dfs[i]['Network'] == 'PGNN') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
-        med_intr[i,2] = dfs[i][(dfs[i]['Network'] == 'SVR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
-        med_intr[i,3] = dfs[i][(dfs[i]['Network'] == 'GBR') & (dfs[i]['Assessment'] == 'Interpolate')].median() 
+        #for table
+        mean_extr_tab = np.round(mean_extr * 100, 2)
+        mean_intr_tab = np.round(mean_intr * 100, 2)
+        med_extr_tab = np.round(med_extr * 100, 2)
+        med_intr_tab = np.round(med_intr * 100, 2)
         
-    mean_extr_premium = mean_extr[:,0] - mean_extr[:,1]
-    mean_intr_premium = mean_intr[:,0] - mean_intr[:,1]
-    med_extr_premium = med_extr[:,0] - med_extr[:,1]
-    med_intr_premium = med_intr[:,0] - med_intr[:,1]   
-    
-    
-    
-    #for table
-    mean_extr_tab = np.round(mean_extr * 100, 2)
-    mean_intr_tab = np.round(mean_intr * 100, 2)
-    med_extr_tab = np.round(med_extr * 100, 2)
-    med_intr_tab = np.round(med_intr * 100, 2)
-    
-
+        fig, [ax, ax1] = plt.subplots(1,2, figsize = (5, 2.5), tight_layout = True)
+        df = [10,20,30,40,50,60,70,80,90]
+        ax.plot(df, mean_extr_tab[:,0], c = 'blue', label = 'NN - extrapolate')
+        ax.plot(df, mean_extr_tab[:,1], c = 'red', label = 'PGNN - extrapolate')
+        ax.plot(df, mean_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - interpolate')
+        ax.plot(df, mean_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - interpolate')
+        ax.set_ylabel('Mean aggregate RMSE '+r'($10^{-2}$)')
+        ax.set_xlabel('Data holdout threshold (%)')
+        ax.set_ylim((0,60))
+        ax.set_xlim((0,100))
+        ax.minorticks_on()
+        ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+        
+        ax1.plot(df, med_extr_tab[:,0], c = 'blue', label = 'NN - extrapolate')
+        ax1.plot(df, med_extr_tab[:,1], c = 'red', label = 'PGNN - extrapolate')
+        ax1.plot(df, med_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - interpolate')
+        ax1.plot(df, med_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - interpolate')
+        ax1.set_ylabel('Median aggregate RMSE '+r'($10^{-2}$)')
+        ax1.set_xlabel('Data holdout threshold (%)')
+        ax1.set_ylim((0,60))
+        ax1.set_xlim((0,100))
+        ax1.minorticks_on()
+        ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_aggregateRMSEsummary.pdf")
 
 
 #Pickling functions
