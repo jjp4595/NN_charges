@@ -538,19 +538,28 @@ if __name__ == '__main__':
                 fax[i].set_xlim(0,50)
                 fax[i].set_xticks([0,25,50])
                 fax[i].set_xlabel('Epoch')
+                fax[i].set_yscale('log')
+            
                  
                 if i == 0:     
-                    fax[i].set_ylabel('Loss') 
-                    fax[i].set_yticks([0, 0.2, 0.4, 0.6])
+                    fax[i].set_ylabel('log(Loss)') 
+                    #fax[i].set_yticks([0, 0.2, 0.4, 0.6])
                     handles, labels = fax[i].get_legend_handles_labels()
                     fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
                 else:
-                    fax[i].set_yticks([0, 0.02,0.04,0.06])
+                    #fax[i].set_yticks([0, 0.02,0.04,0.06])
+                    pass
                 
-            fax[0].set_ylim(0, 0.6)
-            fax[1].set_ylim(0, 0.06)
-            fax[2].set_ylim(0, 0.06)
-            fax[3].set_ylim(0, 0.06)
+            fax[0].set_ylim(10**-3, 10**0)
+            fax[1].set_ylim(7*10**-4, 10**-2)
+            fax[2].set_ylim(7*10**-4, 10**-2)
+            fax[3].set_ylim(7*10**-4, 10**-2)
+            fax[0].text(0.5, -0.5, "(a)", fontsize = "x-small", ha="center", transform=fax[0].transAxes)
+            fax[1].text(0.5, -0.5, "(b)", fontsize = "x-small", ha="center", transform=fax[1].transAxes)
+            fax[2].text(0.5, -0.5, "(c)", fontsize = "x-small", ha="center", transform=fax[2].transAxes)
+            fax[3].text(0.5, -0.5, "(d)", fontsize = "x-small", ha="center", transform=fax[3].transAxes)
+            
+            
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
 
             import tensorflow as tf
@@ -605,7 +614,10 @@ if __name__ == '__main__':
             #columns in score are lamda 2, index is lamda 1
             
             fig, ax = plt.subplots(1,1, figsize = (3.5,3.3), tight_layout = True)
-            sns.heatmap(score, annot=True, annot_kws = {'fontsize':'x-small'},ax = ax)
+            sns.heatmap(score, annot=True, vmin = 0, vmax = 0.0025, 
+                        annot_kws = {'fontsize':'x-small'},
+                        cbar_kws = {'label':'RMSE'},
+                        ax = ax)
             ax.set_ylabel('$\lambda_{Phy,1}$')
             ax.set_xlabel('$\lambda_{Phy,2}$')
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_12.pdf")
@@ -633,17 +645,23 @@ if __name__ == '__main__':
             fax[i].set_xlim(0,50)
             fax[i].set_xticks([0,25,50])
             fax[i].set_xlabel('Epoch')
+            fax[i].set_yscale('log')
             if i == 0:                    
                 handles, labels = fax[i].get_legend_handles_labels()
-                fax[i].set_yticks([0, 0.2, 0.4, 0.6])
-                fax[i].set_ylabel('Loss') 
+                #fax[i].set_yticks([0, 0.2, 0.4, 0.6])
+                fax[i].set_ylabel('log(Loss)') 
                 fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
             else:
-                ax[i].set_yticks([0, 0.02,0.04,0.06])
-        fax[0].set_ylim(0, 0.6)
-        fax[1].set_ylim(0, 0.06)
-        fax[2].set_ylim(0, 0.06)
-        fax[3].set_ylim(0, 0.06)
+                #ax[i].set_yticks([0, 0.02,0.04,0.06])
+                pass
+            fax[0].set_ylim(10**-3, 10**0)
+            fax[1].set_ylim(7*10**-4, 10**-2)
+            fax[2].set_ylim(7*10**-4, 10**-2)
+            fax[3].set_ylim(7*10**-4, 10**-2)
+            fax[0].text(0.5, -0.5, "(a)", fontsize = "x-small", fontweight="light", ha="center", transform=fax[0].transAxes)
+            fax[1].text(0.5, -0.5, "(b)", fontsize = "x-small",fontweight="light", ha="center", transform=fax[1].transAxes)
+            fax[2].text(0.5, -0.5, "(c)", fontsize = "x-small", fontweight="light",ha="center", transform=fax[2].transAxes)
+            fax[3].text(0.5, -0.5, "(d)", fontsize = "x-small", fontweight="light",ha="center", transform=fax[3].transAxes)
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_12.pdf")
 
         import tensorflow as tf
@@ -681,8 +699,8 @@ if __name__ == '__main__':
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.5})
         ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
         ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
-        ax.set_ylabel("Count")
-        ax.set_xlabel("Y")
+        ax.set_ylabel("Count", fontsize='x-small')
+        ax.set_xlabel(r'$Y$', fontsize='x-small')
         ax.minorticks_on()
         ax.set_ylim(0, histylim)
         ax.set_yticks(np.linspace(0,histylim,3))
@@ -690,13 +708,13 @@ if __name__ == '__main__':
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
         
-        hist = ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.magma)
-        cbar = plt.colorbar(hist[-1], ax = ax1)
-        cbar.ax.set_ylabel("Count")
-        cbar.set_ticks(np.linspace(0,1,3))
+        hist = ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.binary)
+        #cbar = plt.colorbar(hist[-1], ax = ax1)
+        #cbar.ax.set_ylabel("Count")
+        #cbar.set_ticks(np.linspace(0,1,3))
         
-        ax1.set_xlabel('Z')
-        ax1.set_ylabel(r'$\theta$')
+        ax1.set_xlabel(r'$X_1$', fontsize='x-small')
+        ax1.set_ylabel(r'$X_2$', fontsize='x-small')
         ax1.set_xlim(0, 1)
         ax1.set_ylim(0, 1)
         ax1.set_xticks(np.linspace(0,1,3))
@@ -925,15 +943,17 @@ if __name__ == '__main__':
         for i in extrap_strings:
         					
             all_data = load_obj('remove_'+i+'_data')
-            #All scores
+            #All scores up to threshold
             NNs_extr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].flatten())
             PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].flatten())
-            # #Min scores
-            # NNs_extr.append(np.asarray(all_data['NNtest_scores'])[0:dh,:,0].min(1).flatten())
-            # PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[0:dh,:,0].min(1).flatten())  
             svrs_extr.append(np.asarray(all_data['svr_test_rmse'])[0:dh].flatten())
             gbrs_extr.append(np.asarray(all_data['reg_test_rmse'])[0:dh].flatten())
             
+            # #All scores above threshold
+            # NNs_extr.append(np.asarray(all_data['NNtest_scores'])[dh::,:,0].flatten())
+            # PGNNs_extr.append(np.asarray(all_data['PGNN_12_test_scores'])[dh::,:,0].flatten())
+            # svrs_extr.append(np.asarray(all_data['svr_test_rmse'])[dh::].flatten())
+            # gbrs_extr.append(np.asarray(all_data['reg_test_rmse'])[dh::].flatten())            
             
         NNs_extr   = np.asarray(NNs_extr).flatten()
         PGNNs_extr = np.asarray(PGNNs_extr).flatten()
@@ -1004,8 +1024,13 @@ if __name__ == '__main__':
         #g.set(ylabel = 'log(RMSE)')
         g.despine(right=False, top=False)
         #g.savefig("__Paper\Fig_pubgraph.pdf")
+        
+        #graphs below dh threshold
         #g.savefig("potential_thesis_figures\Fig_aggregated_logRMSE_"+str(dh*10)+".pdf")
         #g.savefig("potential_thesis_figures\Fig_aggregated_RMSE_"+str(dh*10)+".pdf")
+        #graphs above dh threshold
+        #g.savefig("potential_thesis_figures\Fig_aggregated_RMSE_above"+str(dh*10)+".pdf")
+        #g.savefig("potential_thesis_figures\Fig_aggregated_logRMSE_above"+str(dh*10)+".pdf")
         return df
     
     def pubtabledata():
@@ -1046,35 +1071,45 @@ if __name__ == '__main__':
         
         
         
-        #for table
-        mean_extr_tab = np.round(mean_extr * 100, 2)
-        mean_intr_tab = np.round(mean_intr * 100, 2)
-        med_extr_tab = np.round(med_extr * 100, 2)
-        med_intr_tab = np.round(med_intr * 100, 2)
+        #for table if x10**2
+        # mean_extr_tab = np.round(mean_extr * 100, 2)
+        # mean_intr_tab = np.round(mean_intr * 100, 2)
+        # med_extr_tab = np.round(med_extr * 100, 2)
+        # med_intr_tab = np.round(med_intr * 100, 2)
+        #for table if notx10**2
+        mean_extr_tab = mean_extr
+        mean_intr_tab = mean_intr
+        med_extr_tab = med_extr
+        med_intr_tab = med_intr
+
         
         fig, [ax, ax1] = plt.subplots(1,2, figsize = (5, 2.5), tight_layout = True)
         df = [10,20,30,40,50,60,70,80,90]
-        ax.plot(df, mean_extr_tab[:,0], c = 'blue', label = 'NN - extrapolate')
-        ax.plot(df, mean_extr_tab[:,1], c = 'red', label = 'PGNN - extrapolate')
-        ax.plot(df, mean_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - interpolate')
-        ax.plot(df, mean_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - interpolate')
-        ax.set_ylabel('Mean aggregate RMSE '+r'($10^{-2}$)')
+        ax.plot(df, mean_extr_tab[:,0], c = 'blue', label = 'NN - extr.')
+        ax.plot(df, mean_extr_tab[:,1], c = 'red', label = 'PGNN - extr.')
+        ax.plot(df, mean_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - inter.')
+        ax.plot(df, mean_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - inter.')
+        ax.set_ylabel('Mean aggregate RMSE')
         ax.set_xlabel('Data holdout threshold (%)')
-        ax.set_ylim((0,60))
+        #ax.set_ylim((0,60))
+        ax.set_yscale('log')
+        ax.set_ylim((10**-3,10**0))
         ax.set_xlim((0,100))
         ax.minorticks_on()
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         handles, labels = ax.get_legend_handles_labels()
-        ax.legend(handles, labels, loc='upper left', prop={'size':6}) 
+        ax.legend(handles, labels, loc='lower right', prop={'size':5}) 
         
-        ax1.plot(df, med_extr_tab[:,0], c = 'blue', label = 'NN - extrapolate')
-        ax1.plot(df, med_extr_tab[:,1], c = 'red', label = 'PGNN - extrapolate')
-        ax1.plot(df, med_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - interpolate')
-        ax1.plot(df, med_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - interpolate')
-        ax1.set_ylabel('Median aggregate RMSE '+r'($10^{-2}$)')
+        ax1.plot(df, med_extr_tab[:,0], c = 'blue', label = 'NN - extr.')
+        ax1.plot(df, med_extr_tab[:,1], c = 'red', label = 'PGNN - extr.')
+        ax1.plot(df, med_intr_tab[:,0], ls = '--', c = 'blue', label = 'NN - inter.')
+        ax1.plot(df, med_intr_tab[:,1], ls = '--', c = 'red', label = 'PGNN - inter.')
+        ax1.set_ylabel('Median aggregate RMSE')
         ax1.set_xlabel('Data holdout threshold (%)')
-        ax1.set_ylim((0,60))
+        #ax1.set_ylim((0,60))
+        ax1.set_yscale('log')
+        ax1.set_ylim((10**-3,10**0))
         ax1.set_xlim((0,100))
         ax1.minorticks_on()
         ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)

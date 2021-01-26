@@ -1,15 +1,27 @@
+"""
+NN before the Physics guided aspect
+"""
 import pandas as pd
 import numpy as np
+import os 
+
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
 from keras.optimizers import SGD, Adam
+from keras import backend as K
 from keras.wrappers.scikit_learn import KerasRegressor
+
+
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import MinMaxScaler, PowerTransformer
 from sklearn.metrics import r2_score
+
+
 import matplotlib.pyplot as plt
+
+
 
 def JP_lowZ(m,Z,theta):
     return (0.383*(Z**-1.858)) * np.exp((-theta**2)/1829) * (m**(1/3))
@@ -17,11 +29,11 @@ def JP_highZ(m,Z,theta):
     return (0.557*(Z**-1.663)) * np.exp((-theta**2)/2007) * (m**(1/3)) 
 
 #1) Training with one angle sample at a time ---------------------------------
-data = pd.read_csv('spherical.csv', header = None)
+data = pd.read_csv(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical.csv", header = None)
 data= data.values
 # split into input (X) and output (Y) variables
-X = data[:,[0,1,3]]
-y = data[:,4]
+X = data[:,[2,3]]
+y = data[:,4]/1000/(0.1**(1/3))
 y_og = y.reshape(len(y),1)
 y = y_og
 # lol = X[:, 1] / (X[:,0]**(1/3)) #scaled distance
@@ -37,6 +49,7 @@ y = y_og
 #Scaling X
 scaler = MinMaxScaler(feature_range=(0,1))
 X_scaled = scaler.fit_transform(X)
+scaler_x = scaler.fit(X)
 
 #scaling y
 scaler2 = PowerTransformer()
@@ -52,7 +65,7 @@ y_scaled = scaler_y2.transform(y_scaled)
 # create model
 def baseline_model():
     model = Sequential()
-    model.add(Dense(200, input_dim=3, kernel_initializer='he_uniform', activation='relu'))
+    model.add(Dense(200, input_dim=2, kernel_initializer='he_uniform', activation='relu'))
     #model.add(Dropout(0.2))
     model.add(Dense(100,  kernel_initializer='he_uniform', activation='relu'))
     #model.add(Dropout(0.2))
@@ -143,15 +156,15 @@ def figs():
         theta = np.linspace(0,80,200).reshape(200,1)
         
         
-        fax[i].plot(theta, y[np.arange(0,200,1)+exp]/1000, 'k', label = 'CFD')
+        fax[i].plot(theta, y[np.arange(0,200,1)+exp], 'k', label = 'CFD')
         
         if data[exp,2] < 0.21:
             fax[i].plot(theta, JP_lowZ(data[exp,0],data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
         else:
             fax[i].plot(theta, JP_highZ(data[exp,0],data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
             
-        fax[i].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred))/1000, 'r', label = 'model')    
-        #fax[i].plot(theta, scaler_y.inverse_transform(pred)/1000, 'r', label = 'model')
+        fax[i].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred)), 'r', label = 'model')    
+        #fax[i].plot(theta, scaler_y.inverse_transform(pred), 'r', label = 'model')
         
         fax[i].set_title("Z ="+str(np.round(data[exp,2],3)))
         fax[i].set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
@@ -177,14 +190,14 @@ def figs():
         theta = np.linspace(0,80,200).reshape(200,1)
         
         
-        fax[i-9].plot(theta, y[np.arange(0,200,1)+exp]/1000, 'k', label = 'CFD')
+        fax[i-9].plot(theta, y[np.arange(0,200,1)+exp], 'k', label = 'CFD')
         
         if data[exp,2] < 0.21:
             fax[i-9].plot(theta, JP_lowZ(data[exp,0],data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
         else:
             fax[i-9].plot(theta, JP_highZ(data[exp,0],data[exp,2],theta), 'k--', label = 'Pannell et al. (2020)') 
-        fax[i-9].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred))/1000, 'r', label = 'model')
-        #fax[i-9].plot(theta, scaler_y.inverse_transform(pred)/1000, 'r', label = 'model')
+        fax[i-9].plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(pred)), 'r', label = 'model')
+        #fax[i-9].plot(theta, scaler_y.inverse_transform(pred), 'r', label = 'model')
         
         fax[i-9].set_title("Z ="+str(np.round(data[exp,2],3)))
         fax[i-9].set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
@@ -288,7 +301,7 @@ def everyothersamplefigs():
     fig, ax = plt.subplots(3, 3, figsize=(8,8))
     fax = ax.ravel()
     
-    j = remove
+    
     for i in range(len(j)):
         exp = 200 * i
         y2 = X_FINAL[np.arange(0,200,1)+exp,:]
@@ -317,4 +330,55 @@ def everyothersamplefigs():
     plt.tight_layout()
     handles, labels = fax[0].get_legend_handles_labels()
     fax[0].legend(handles, labels, loc='upper right', prop={'size':6})
+
+
+
+
+def unseen():
+    theta = np.linspace(0,80,200)
+    #validation against completely unseen data
+    fn_val_highZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical_val_highZ.csv"
+    val_highZ = pd.read_csv(fn_val_highZ, header = None)
+    val_highZ = val_highZ.values
+    fn_val_lowZ = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperNN_charges\datasets\spherical_val_lowZ.csv"
+    val_lowZ = pd.read_csv(fn_val_lowZ, header = None)
+    val_lowZ = val_lowZ.values
+    
+    # split into input (X) and output (Y) variables
+    X_val_highZ = val_highZ[:,[2,3]]
+    y_val_highZ = val_highZ[:,4]/1000/(250**(1/3))
+    y_val_highZ = y_val_highZ.reshape(len(y_val_highZ),1)
+    # split into input (X) and output (Y) variables
+    X_val_lowZ = val_lowZ[:,[2,3]]
+    y_val_lowZ = val_lowZ[:,4]/1000/(5**(1/3))
+    y_val_lowZ = y_val_lowZ.reshape(len(y_val_lowZ),1)
+    
+    
+    X_val_highZ = scaler_x.transform(X_val_highZ)
+    X_val_lowZ = scaler_x.transform(X_val_lowZ)
+
+    
+    fig, [ax, ax1] = plt.subplots(1,2, figsize = (6,3))
+    ax.plot(theta, y_val_lowZ, 'k', label = 'CFD')
+    ax.plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(model.predict(X_val_lowZ).reshape(200,1))), 'r', label = 'model')   
+    ax.set_title("Z = 0.17 m/kg^{1/3}")
+    ax.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
+    ax.set_xlabel('theta', fontsize='x-small')
+    ax.set_xlim(0,80)
+    ax.minorticks_on()
+    ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+    ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+    
+    ax1.plot(theta, y_val_highZ, 'k', label = 'CFD')
+    ax1.plot(theta, scaler_y.inverse_transform(scaler_y2.inverse_transform(model.predict(X_val_highZ).reshape(200,1))), 'r', label = 'model')   
+    ax1.set_title("Z = 0.40 m/kg^{1/3}")
+    ax1.set_ylabel('specific impulse (MPa.ms)', fontsize='x-small')
+    ax1.set_xlabel('theta', fontsize='x-small')
+    ax1.set_xlim(0,80)
+    ax1.minorticks_on()
+    ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+    ax1.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
+    plt.tight_layout()
+unseen()
+
 

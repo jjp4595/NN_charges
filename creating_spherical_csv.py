@@ -61,6 +61,7 @@ charge_rad = 0.0246
 cm = 0.1
 TNTeq = 1
 
+
 def dataimport(folderpath, cm, TNTeq, sav=151):
     file = FileAddressList(folderpath + r"\*.txt")
     data = FileAddressList(folderpath+ r"\*gtable", 1)
@@ -98,4 +99,23 @@ np.savetxt('spherical.csv', new, delimiter=',', fmt='%.5f')
 
 
 
+
+#create some validation data
+val_highZ = dataimport(os.environ['USERPROFILE'] + r"\Google Drive\Apollo Sims\Impulse Distribution Curve Modelling\Paper_1\Sphere\validation_samples\250kg\res5", 250,TNTeq, sav=151)
+mass = np.repeat(250, 200)
+so = np.repeat(val_highZ['so'], 200)
+z = np.repeat(val_highZ['z'], 200)
+imp = val_highZ['imp_smooth'].flatten('F')
+theta = np.linspace(0,80,200)
+new = np.stack((mass, so, z, theta, imp), axis = 1)
+np.savetxt('spherical_val_highZ.csv', new, delimiter=',', fmt='%.5f')
+
+val_lowZ = dataimport(os.environ['USERPROFILE'] + r"\Google Drive\Apollo Sims\Impulse Distribution Curve Modelling\Paper_1\Sphere\validation_samples\5kg\res4", 5,TNTeq, sav=151)
+mass = np.repeat(5, 200)
+so = np.repeat(val_lowZ['so'], 200)
+z = np.repeat(val_lowZ['z'], 200)
+imp = val_lowZ['imp_smooth'].flatten('F')
+theta = np.linspace(0,80,200)
+new = np.stack((mass, so, z, theta, imp), axis = 1)
+np.savetxt('spherical_val_lowZ.csv', new, delimiter=',', fmt='%.5f')
 
