@@ -352,7 +352,7 @@ if __name__ == '__main__':
     def datatransformgraphs():
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0, 0, 0.01)
         #Data transformation
-        fig, [ax, ax1] = plt.subplots(1,2, figsize = (3.3,1.8), sharey = True, tight_layout = True)
+        fig, [ax, ax1] = plt.subplots(1,2, figsize = (5,2.5), sharey = True, tight_layout = True)
         ax.hist(y_og, bins = 25, histtype = 'stepfilled', color = 'black', density = True)
         ax.set_ylabel("Count (density)")
         ax.set_xlabel("Y")
@@ -527,9 +527,11 @@ if __name__ == '__main__':
             save_obj(NN, 'NN')  
         else:
             NN = load_obj('NN')
-            fig, ax = plt.subplots(1, 4, figsize=(6,1.8), tight_layout = True)
-            fax = ax.ravel()
+            
+            figs, fax = [], []        
             for i in range(0,len(NN['hist'])):
+                fig, ax = plt.subplots(1, 1, figsize=(2.5,2.5), tight_layout = True)
+                fax.append(ax)
                 fax[i].plot(NN['hist'][i]['val_loss'], 'k--', label = 'Validation')
                 fax[i].plot(NN['hist'][i]['loss'], 'k', label = 'Training')
                 fax[i].minorticks_on()
@@ -539,34 +541,24 @@ if __name__ == '__main__':
                 fax[i].set_xticks([0,25,50])
                 fax[i].set_xlabel('Epoch')
                 fax[i].set_yscale('log')
+                fax[i].set_ylabel('log(Loss)')
             
                  
                 if i == 0:     
-                    fax[i].set_ylabel('log(Loss)') 
-                    #fax[i].set_yticks([0, 0.2, 0.4, 0.6])
                     handles, labels = fax[i].get_legend_handles_labels()
-                    fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
+                    fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})   
+                    fax[i].set_ylim(10**-3, 10**0)
                 else:
-                    #fax[i].set_yticks([0, 0.02,0.04,0.06])
-                    pass
-                
-            fax[0].set_ylim(10**-3, 10**0)
-            fax[1].set_ylim(7*10**-4, 10**-2)
-            fax[2].set_ylim(7*10**-4, 10**-2)
-            fax[3].set_ylim(7*10**-4, 10**-2)
-            fax[0].text(0.5, -0.5, "(a)", fontsize = "x-small", ha="center", transform=fax[0].transAxes)
-            fax[1].text(0.5, -0.5, "(b)", fontsize = "x-small", ha="center", transform=fax[1].transAxes)
-            fax[2].text(0.5, -0.5, "(c)", fontsize = "x-small", ha="center", transform=fax[2].transAxes)
-            fax[3].text(0.5, -0.5, "(d)", fontsize = "x-small", ha="center", transform=fax[3].transAxes)
-            
-            
-            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN.pdf")
+                    fax[i].set_ylim(7*10**-4, 10**-2)
+                    
+          
+                fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_NN_"+str(i)+".pdf")
 
             import tensorflow as tf
             load_model = tf.keras.models.load_model('obj/NNmodel.h5', compile = False)
             
 
-            fig, ax = plt.subplots(1,1, figsize=(2,2), tight_layout = True)
+            fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
             ax.scatter(NN['data'][0]['y_unseen'], load_model.predict(NN['data'][0]['X_unseen']), s=10., color='black')
             text = "$R^2 = {:.3f}$".format(r2_score(NN['data'][0]['y_unseen'],load_model.predict(NN['data'][0]['X_unseen'])))
             ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
@@ -634,9 +626,11 @@ if __name__ == '__main__':
         else:
             PGNN = load_obj('PGNN_12')
         
-        fig, ax = plt.subplots(1, 4, figsize=(6,1.8), tight_layout = True)
-        fax = ax.ravel()
+        
+        figs, fax = [], []  
         for i in range(0,len(PGNN['hist'])):
+            fig, ax = plt.subplots(1, 1, figsize=(2.5,2.5), tight_layout = True)
+            fax.append(ax)
             fax[i].plot(PGNN['hist'][i]['val_loss'], 'k--', label = 'Validation')
             fax[i].plot(PGNN['hist'][i]['loss'], 'k', label = 'Training')
             fax[i].minorticks_on()
@@ -646,30 +640,23 @@ if __name__ == '__main__':
             fax[i].set_xticks([0,25,50])
             fax[i].set_xlabel('Epoch')
             fax[i].set_yscale('log')
+            fax[i].set_ylabel('log(Loss)') 
             if i == 0:                    
                 handles, labels = fax[i].get_legend_handles_labels()
-                #fax[i].set_yticks([0, 0.2, 0.4, 0.6])
-                fax[i].set_ylabel('log(Loss)') 
-                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':5})     
+                fax[i].set_ylim(10**-3, 10**0)
+                fax[i].legend(handles, labels, title_fontsize = 'x-small', loc='upper right', prop={'size':6})     
             else:
-                #ax[i].set_yticks([0, 0.02,0.04,0.06])
-                pass
-            fax[0].set_ylim(10**-3, 10**0)
-            fax[1].set_ylim(7*10**-4, 10**-2)
-            fax[2].set_ylim(7*10**-4, 10**-2)
-            fax[3].set_ylim(7*10**-4, 10**-2)
-            fax[0].text(0.5, -0.5, "(a)", fontsize = "x-small", fontweight="light", ha="center", transform=fax[0].transAxes)
-            fax[1].text(0.5, -0.5, "(b)", fontsize = "x-small",fontweight="light", ha="center", transform=fax[1].transAxes)
-            fax[2].text(0.5, -0.5, "(c)", fontsize = "x-small", fontweight="light",ha="center", transform=fax[2].transAxes)
-            fax[3].text(0.5, -0.5, "(d)", fontsize = "x-small", fontweight="light",ha="center", transform=fax[3].transAxes)
-        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_12.pdf")
+                fax[i].set_ylim(7*10**-4, 10**-2)
+                
+
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_training_PGNN_12_"+str(i)+".pdf")
 
         import tensorflow as tf
         load_model = tf.keras.models.load_model('obj/PGNN_12_model.h5', 
                                 custom_objects={'loss':combined_loss}, compile = False)
         
 
-        fig, ax = plt.subplots(1,1, figsize=(2,2), tight_layout = True)
+        fig, ax = plt.subplots(1,1, figsize=(2.5,2.5), tight_layout = True)
         ax.scatter(PGNN['data'][0]['y_unseen'], load_model.predict(PGNN['data'][0]['X_unseen']), s=10., color='black')
         text = "$R^2 = {:.3f}$".format(r2_score(PGNN['data'][0]['y_unseen'],load_model.predict(PGNN['data'][0]['X_unseen'])))
         ax.text(0.2, 0.8, text, fontsize = 'small', transform=ax.transAxes)
@@ -692,7 +679,7 @@ if __name__ == '__main__':
         nbins_z = np.histogram_bin_edges(X_scaled[:,0], bins = 18)
         nbins_theta = np.histogram_bin_edges(X_scaled[:,1], bins = 200)
         
-        fs = (3.3, 1.8)
+        fs = (4.15, 2.35)
         histylim = 200
         
         fig, [ax, ax1] = plt.subplots(1,2, figsize = fs, tight_layout = True)
