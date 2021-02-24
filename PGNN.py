@@ -27,6 +27,7 @@ from matplotlib.ticker import PercentFormatter
 from matplotlib import colors
 from matplotlib.lines import Line2D
 import seaborn as sns
+from mpl_toolkits.mplot3d import Axes3D
 
 import multiprocessing
 
@@ -65,47 +66,40 @@ plt.rcParams.update(params)
 
 
 
-
-
-
-
-
-
-
-
 def JP_lowZ(Z,theta):#scaled impulse
     return (0.383*(Z**-1.858)) * np.exp((-theta**2)/1829)
 def JP_highZ(Z,theta):#scaled impulse
     return (0.557*(Z**-1.663)) * np.exp((-theta**2)/2007) 
 
 
+def MSE(y_true, y_pred):
+    return (1/len(y_pred)) * (sum(((y_true - y_pred)**2)) )
+def MAE(y_true, y_pred):
+    return (1/len(y_pred)) * (sum(abs(y_true - y_pred)))
+
+
+
 
 #function to calculate the combined loss = sum of rmse and phy based loss
 def combined_loss(params):
-    zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3 = params
+    zimpdiff, lam, thetaimpdiff, lam2 = params
     #zimpdiff, lam, thetaimpdiff, lam2 = params
     def loss(y_true,y_pred):
-        if lam3 != 0:
-            return mean_squared_error(y_true, y_pred) + lam * K.mean(K.relu(zimpdiff)) + lam2 * K.mean(K.relu(thetaimpdiff)) + lam3 * K.mean(K.relu(thetaimpratio - 1.06))
-        else:
             return mean_squared_error(y_true, y_pred) + lam * K.mean(K.relu(zimpdiff)) + lam2 * K.mean(K.relu(thetaimpdiff))
     return loss
 
-# def mse_loss_without_phys(params):
-#     """
-#     Additional metric that just returns MSE. Use when the physics constraint is activated so that test RMSE results are comparable.
-#     """
-#     #zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3 = params
-#     def loss(y_true,y_pred):
-#             return mean_squared_error(y_true, y_pred)
-#     return loss
 
-
-
-def load_data(scaling_input, test_frac = None, 
+def load_data(test_frac = None, 
               remove_mean = None, remove_smallest = None, remove_largest = None,
               r_z_mean = None, r_z_smallest = None, r_z_largest = None, 
               r_theta_mean = None, r_theta_smallest = None, r_theta_largest = None):
+    """
+    Controls the TRAIN and TEST (unseen) data split. 
+    IE this is where extrpolation & interpolation stress-test data are sorted.
+    Data is scaled within the main code, not here. 
+    """
+    
+    
     # Load features (Xc) and target values (Y) 
     filename = os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\datasets\spherical.csv"
     data = pd.read_csv(filename, header = None)
@@ -117,29 +111,23 @@ def load_data(scaling_input, test_frac = None,
     y_og = y.reshape(len(y),1)
     y = y_og       
     
-    if scaling_input == 1:
-        #Scaling X
-        scaler = MinMaxScaler(feature_range=(0,1))
-        scaler_x = scaler.fit(X)
-        X_scaled = scaler_x.transform(X)
-        
-        #scaling y
-        scaler2 = PowerTransformer()
-        
-        scaler_y = scaler2.fit(y)
-        y_scaled = scaler_y.transform(y)
-        
-        # scaler_y2 = scaler.fit(y_scaled)
-        # y_scaled = scaler_y2.transform(y_scaled)
-    else:
-        X_scaled, y_scaled = X, y
-        
+    
+    #Scaling X
+    scaler = MinMaxScaler(feature_range=(0,1))
+    scaler_x = scaler.fit(X)
+    X_scaled = scaler_x.transform(X)
     X_scaled_og = X_scaled
-   
+    
+    #scaling y
+    scaler2 = PowerTransformer()
+    scaler_y = scaler2.fit(y)
+    y_scaled = scaler_y.transform(y)
+    
 
+    #custom data removal for stress-testing
     if remove_mean != None:
         limit = int(len(y_og) * remove_mean * 0.5)
-        y_og_sort_inds = np.argsort(y_og.reshape(3600)) #sort low to high
+        y_og_sort_inds = np.argsort(y_og.reshape(len(y_og))) #sort low to high
         inds_above_mean = np.where(y_og[y_og_sort_inds] > y_og.mean())[0][0:limit]
         inds_below_mean = np.where(y_og[y_og_sort_inds] < y_og.mean())[0][-limit::]
         remove_inds = np.concatenate((inds_above_mean, inds_below_mean))        
@@ -147,13 +135,13 @@ def load_data(scaling_input, test_frac = None,
         X_train, y_train = np.delete(X_scaled[y_og_sort_inds], remove_inds, 0),  np.delete(y_scaled[y_og_sort_inds], remove_inds)
         
     elif remove_smallest != None:
-        inds = np.argsort(y_og.reshape(3600))
+        inds = np.argsort(y_og.reshape(len(y_og)))
         limit = int(len(y_og) * remove_smallest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
         
     elif remove_largest != None:
-        inds = np.flip(np.argsort(y_og.reshape(3600)))
+        inds = np.flip(np.argsort(y_og.reshape(len(y_og))))
         limit = int(len(y_og) * remove_largest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
@@ -168,13 +156,13 @@ def load_data(scaling_input, test_frac = None,
         X_train, y_train = np.delete(X_scaled[og_sort_inds], remove_inds, 0),  np.delete(y_scaled[og_sort_inds], remove_inds)
     
     elif r_z_smallest != None:
-        inds = np.argsort(X_scaled_og[:,0].reshape(3600))
+        inds = np.argsort(X_scaled_og[:,0].reshape(len(y_og)))
         limit = int(len(X_scaled_og) * r_z_smallest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
         
     elif r_z_largest != None:
-        inds = np.flip(np.argsort(X_scaled_og[:,0].reshape(3600)))
+        inds = np.flip(np.argsort(X_scaled_og[:,0].reshape(len(y_og))))
         limit = int(len(X_scaled_og) * r_z_largest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
@@ -189,13 +177,13 @@ def load_data(scaling_input, test_frac = None,
         X_train, y_train = np.delete(X_scaled[og_sort_inds], remove_inds, 0),  np.delete(y_scaled[og_sort_inds], remove_inds)
     
     elif r_theta_smallest != None:
-        inds = np.argsort(X_scaled_og[:,1].reshape(3600))
+        inds = np.argsort(X_scaled_og[:,1].reshape(len(y_og)))
         limit = int(len(X_scaled_og) * r_theta_smallest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
     
     elif r_theta_largest != None:
-        inds = np.flip(np.argsort(X_scaled_og[:,1].reshape(3600)))
+        inds = np.flip(np.argsort(X_scaled_og[:,1].reshape(len(y_og))))
         limit = int(len(X_scaled_og) * r_theta_largest)
         X_unseen, y_unseen = X_scaled[inds][0:limit], y_scaled[inds][0:limit]
         X_train, y_train = X_scaled[inds][limit::], y_scaled[inds][limit::]
@@ -206,77 +194,64 @@ def load_data(scaling_input, test_frac = None,
     
     return X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og
 
-def load_loss(X_scaled_og, model, lamda, lamda2, lamda3):
+def load_loss(X_scaled_og, model, lamda, lamda2):
     # Defining data for physics-based regularization, Z Condition
-    zX1 =  X_scaled_og[0:-200,:]  # X at Z i for every pair of consecutive Z values
-    zX2 =  X_scaled_og[200::,:]# X at Z i + 1 for every pair of consecutive Z values
-    zin1 = K.constant(value=zX1) # input at Z i
-    zin2 = K.constant(value=zX2) # input at Z i + 1
-    lam = K.constant(value=lamda) # regularization hyper-parameter
-    zout1 = model(zin1) # model output at Z i
-    zout2 = model(zin2) # model output at Z i + 1
-    zimpdiff = zout2 - zout1 # difference in impulse estimates at every pair of consecutive z values    
+    zin1 = K.constant(value=X_scaled_og[0:-150,:]) 
+    zin2 = K.constant(value=X_scaled_og[150::,:]) 
+    lam = K.constant(value=lamda) 
+    zout1 = model(zin1) 
+    zout2 = model(zin2) 
+    zimpdiff = zout2 - zout1   
     
-    # Defining data for physics-based regularization, Z Condition
-    thetaX1 =  X_scaled_og[np.argsort(X_scaled_og[:,1])][0:-18,:]  # X at theta i for every pair of consecutive theta values
-    thetaX2 =  X_scaled_og[np.argsort(X_scaled_og[:,1])][18::,:]   # X at theta i + 1 for every pair of consecutive theta values
-    thetaval1, thetaval2 = [], []
-    inds = 0
-    while inds < len(thetaX1): 
-        thetaval1.append(thetaX1[inds:inds+18,:][np.argsort(thetaX1[inds:inds+18,0])])
-        inds+=18
-    inds = 0
-    while inds < len(thetaX2): 
-        thetaval2.append(thetaX2[inds:inds+18,:][np.argsort(thetaX2[inds:inds+18,0])])
-        inds+=18   
-    thetaX1, thetaX2  = np.concatenate(thetaval1), np.concatenate(thetaval2)
-    
-    thetain1 = K.constant(value=thetaX1) # input at theta i
-    thetain2 = K.constant(value=thetaX2) # input at theta i + 1
-    lam2 = K.constant(value=lamda2) # regularization hyper-parameter
-    thetaout1 = model(thetain1) # model output at theta i
-    thetaout2 = model(thetain2) # model output at theta i + 1
-    thetaimpdiff = thetaout2 - thetaout1 # difference in impulse estimates at every pair of consecutive z values  
-    
-    lam3 = K.constant(value = lamda3)
-    thetaimpratio = thetaout1 / thetaout2
+    # Defining data for physics-based regularization, theta Condition    
+    tX =  X_scaled_og[np.argsort(X_scaled_og[:,1])] 
+    tX = tX.reshape(-1,18,2) 
+    ind = np.argsort(tX[:,:,0]) 
+    tX = tX.reshape(-1,2)
+    ind = ind.reshape(-1)
+    ind += np.repeat(np.arange(0,150,1)*18,18)
+    tX = tX[ind,:]
+    thetain1 = K.constant(value=tX[0:-18,:])
+    thetain2 = K.constant(value=tX[18::,:]) 
+    lam2 = K.constant(value=lamda2)
+    thetaout1 = model(thetain1)
+    thetaout2 = model(thetain2)
+    thetaimpdiff = thetaout2 - thetaout1     
 
-    totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3])
-    #non_phy_loss = mse_loss_without_phys([zimpdiff, lam, thetaimpdiff, lam2, thetaimpratio, lam3])
+    totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2])
     
     return totloss
 
 
 
-def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None, 
+def NN_train_test(epochs, batch, nodes, opt_str, 
+                  learn_rate = None, dropout = None, 
                   lamda1 = None, lamda2 = None,  
                   **kwarg):
      
     #set lamdas=0 for pgnn0
     if lamda1 == None:
-        lamda = 0 # Physics-based regularization constant - Z
+        lamda = 0 
     else:
         lamda = lamda1
     
     if lamda2 == None:
         lamda2 = 0 
     else:
-        lamda2 = lamda2  #Physics-based regularization constant - theta monotonic
-     
-    lamda3 = 0 #theta smoothness    
+        lamda2 = lamda2  
     
     # Hyper-parameters of the training process
     n_layers = 1
     
     batch_size = batch
     num_epochs = epochs
+    n_nodes = nodes
     
     if dropout == None:
         drop_frac = 0
     else:
         drop_frac = dropout
-    n_nodes = 200
-    
+
     patience_val = int(0.3 * num_epochs)
     scaling_input = 1
      
@@ -287,14 +262,15 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None,
     model = Sequential()     
     for layer in np.arange(n_layers):
         if layer == 0:
-            model.add(Dense(n_nodes, input_shape=(np.shape(X_scaled)[1],), activation='relu'))
-            model.add(Dropout(drop_frac))
+            model.add(Dense(n_nodes, input_shape=(np.shape(X_scaled)[1],), activation='tanh'))
+            #model.add(Dropout(drop_frac))
         else:
-            model.add(Dense(n_nodes, activation='relu'))
-            model.add(Dropout(drop_frac))
-    model.add(Dense(1, activation='linear'))    
+            model.add(Dense(n_nodes, activation='tanh'))
+            #model.add(Dropout(drop_frac))
+    #model.add(Dense(1, activation='linear'))    
+    model.add(Dense(1))  
     
-    totloss = load_loss(X_scaled_og, model, lamda, lamda2, lamda3)
+    totloss = load_loss(X_scaled_og, model, lamda, lamda2)
     
     if lamda1 == None and lamda2 == None:
         model.compile(loss='mean_squared_error',
@@ -310,15 +286,16 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None,
         pass
 
 
-    kf = KFold(n_splits=4, shuffle = True)
-    hist_df, test_scores, datasets = [], [], []
+    kf = KFold(n_splits=5, shuffle = True)
+    
+    hist_df, datasets, test_scores =[], [], []
     
     if lamda1 == None and lamda2 == None:
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience_val, verbose=1)
     else:
         early_stopping = EarlyStopping(monitor='val_mean_squared_error', patience=patience_val, verbose=1)
     
-    for train_index, test_index in kf.split(X_train, y=y_train):
+    for train_index, val_index in kf.split(X_train, y=y_train):
         
         
         history = model.fit(X_train[train_index], 
@@ -326,14 +303,29 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None,
                             batch_size=batch_size,
                             epochs=num_epochs,
                             verbose = 1,
-                            validation_data=(X_train[test_index],
-                                            y_train[test_index]),
+                            validation_data=(X_train[val_index],
+                                            y_train[val_index]),
                             validation_freq=1,
                             callbacks=[early_stopping])
-        
-        test_score = model.evaluate(X_unseen, y_unseen, verbose=0)
-        test_scores.append(test_score)
-                
+        model.summary()
+
+        train_pred = scaler_y.inverse_transform(model.predict(X_train[train_index]))
+        val_pred =  scaler_y.inverse_transform(model.predict(X_train[val_index]))
+        test_pred =  scaler_y.inverse_transform(model.predict(X_unseen))
+        train_MSE = MSE(scaler_y.inverse_transform(y_train[train_index]), train_pred)[0]
+        train_MAE = MAE(scaler_y.inverse_transform(y_train[train_index]), train_pred)[0]
+        train_R2 = r2_score(scaler_y.inverse_transform(y_train[train_index]), train_pred)
+        val_MSE = MSE(scaler_y.inverse_transform(y_train[val_index]), val_pred)[0]
+        val_MAE = MAE(scaler_y.inverse_transform(y_train[val_index]), val_pred)[0]
+        val_R2 = r2_score(scaler_y.inverse_transform(y_train[val_index]), val_pred)
+        test_MSE = MSE(scaler_y.inverse_transform(y_unseen), test_pred)[0]
+        test_MAE = MAE(scaler_y.inverse_transform(y_unseen), test_pred)[0]
+        test_R2 = r2_score(scaler_y.inverse_transform(y_unseen), test_pred)
+        score = {'train_MSE':train_MSE, 'train_MAE':train_MAE, 'train_R2':train_R2,
+                  'val_MSE':val_MSE, 'val_MAE':val_MAE, 'val_R2':val_R2,
+                  'test_MSE':test_MSE, 'test_MAE':test_MAE, 'test_R2':test_R2}
+        test_scores.append(score)
+
         history = pd.DataFrame(history.history)
         hist_df.append(history)  
 
@@ -342,15 +334,49 @@ def NN_train_test(epochs, batch, opt_str, learn_rate = None, dropout = None,
                 'scaler_x':scaler_x, 'scaler2':scaler2, 'scaler_y':scaler_y, 
                 'X_scaled_og':X_scaled_og, 'y_og':y_og})   
         
-    
-    return hist_df, model, datasets, test_scores
+    test_score_df = pd.DataFrame(test_scores)
+    return hist_df, model, datasets, test_score_df
 
 
 
-
-if __name__ == '__main__':	
-    def datatransformgraphs():
+if __name__ == '__main__':
+    def dataset_transform_prepostscaler():	
         X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0, 0, 0.01)
+        X = scaler_x.inverse_transform(X_scaled_og)
+        gX, gY = X[:,0].reshape(18,150), X[:,1].reshape(18,150)
+        z = y_og.reshape(18,150)
+        
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3.5, 2.5)    
+        ax = plt.axes(projection ='3d')
+        ax.view_init(27, -36)
+        CS = ax.plot_surface(gX, gY, z, vmin = 0, vmax = 25, cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f', ax = ax,  
+                            shrink = 0.8,
+                            ticks = np.linspace(0,25,6),
+                            pad = -0.05)
+        ax.set_zticklabels([])
+        titletext = ['Peak specific impulse '+r'$(MPa.ms$)']
+        ax.set_proj_type('ortho')
+        plt.tight_layout()
+        
+        fig, ax1 = plt.subplots(1,1)
+        fig.set_size_inches(3.5, 2.5) 
+        ax1 = plt.axes(projection ='3d')
+        ax1.view_init(27,-36)
+        CS = ax1.plot_surface(X_scaled_og[:,0].reshape(18,150), X_scaled_og[:,1].reshape(18,150),
+                             y_scaled.reshape(18,150), vmin = -2.5, vmax = 2.5, cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.1f', ax = ax1,  
+                            shrink = 0.8,
+                            ticks = np.linspace(-2.5,2.5,6),
+                            pad = -0.05)
+        ax1.set_zticklabels([])
+        titletext = ['Peak specific impulse '+r'$(MPa.ms$)']        
+        ax1.set_proj_type('ortho')
+        plt.tight_layout()
+        
+    def datatransformgraphs():
+        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og = load_data(1, 0.01)
         #Data transformation
         fig, [ax, ax1] = plt.subplots(1,2, figsize = (5,2.5), sharey = True, tight_layout = True)
         ax.hist(y_og, bins = 25, histtype = 'stepfilled', color = 'black', density = True)
@@ -371,6 +397,56 @@ if __name__ == '__main__':
         ax1.set_yticks(np.linspace(0,0.5,6))
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_datatransform.pdf")
     
+    def gridsearch_neurons_lr(load = 0):
+        #Grid search batch size and num epochs
+        neurons = [1,2,3,4,5,6,7,8]
+        learn_rate = [0.001, 0.01, 0.1]
+        if load != 0:
+            score, histories = [],[]
+            for i in neurons:
+                for j in learn_rate:
+                    try:
+                        hists, model, data, test_scores = NN_train_test(200, 32, i, 'Adam', learn_rate = j)
+                        score.append(test_scores)
+                        histories.append(hists)
+                    except:
+                        pass
+            all_info = {'score':score, 'History':histories}
+            save_obj(all_info, 'neurons_learnRate')
+        else:
+            all_info = load_obj('neurons_learnRate')
+            mean_test_MSE = np.zeros((len(learn_rate)*len(neurons),1))
+            std_test_MSE = np.zeros((len(learn_rate)*len(neurons),1))
+            for i in range(len(learn_rate)*len(neurons)):
+                mean_test_MSE[i]  = all_info['score'][i].mean()['test_MSE']
+                std_test_MSE[i] = all_info['score'][i].std()['test_MSE']
+            
+            lr1 = np.arange(0,24,len(learn_rate))
+            lr2 = np.arange(1,24,len(learn_rate))
+            lr3 = np.arange(2,24,len(learn_rate))
+            step = 0.15
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            ax.scatter(np.asarray(neurons), mean_test_MSE[lr1], c = 'blue', marker="s", edgecolor = 'k', s=10, label = '0.001', zorder=20)
+            #ax.errorbar(np.asarray(neurons), mean_test_MSE[lr1], yerr = std_test_MSE[lr1].reshape(8), capsize = 3, capthick = 0.5, c='blue', zorder=10)
+            ax.scatter(np.asarray(neurons)+step, mean_test_MSE[lr2], c = 'red', marker="s", edgecolor = 'k', s=10, label = '0.010', zorder=20)
+            ax.errorbar(np.asarray(neurons)+step, mean_test_MSE[lr2], yerr = std_test_MSE[lr2].reshape(8), capsize = 3, capthick = 0.5, c='red', zorder=10)
+            ax.scatter(np.asarray(neurons)+(2*step), mean_test_MSE[lr3], c = 'gray', marker="s", edgecolor = 'k', s=10, label = '0.100', zorder=20)
+            ax.errorbar(np.asarray(neurons)+(2*step), mean_test_MSE[lr3], yerr = std_test_MSE[lr3].reshape(8), capsize = 3, capthick = 0.5, c='gray', zorder=10)
+            #ax.set_yscale('log')
+            
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles, labels, title = 'Learn Rate', title_fontsize = 'x-small', loc='upper left', prop={'size':6})
+            ax.minorticks_on()
+            ax.set_xlim(0,9)
+            #ax.set_ylim(1*10**-3, 1*10**1)
+            ax.set_ylim(0, 6)
+            ax.set_xticks(np.linspace(0,9,10))
+            #ax.set_yticks(np.linspace(0,0.2, 5))
+            ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15, zorder=0)
+            ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25, zorder=0) 
+            ax.set_xlabel('No. neurons')
+            ax.set_ylabel('Mean test MSE')
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_neurons_lr_NN.pdf")
     
     
     def gridsearch_epoch_bs(load = 0):
@@ -1112,3 +1188,15 @@ def save_obj(obj, name ):
 def load_obj(name ):
     with open('obj/' + name + '.pkl', 'rb') as f:
         return pickle.load(f)
+
+
+
+# for i in range(18):
+#     fig, [ax0, ax1] = plt.subplots(1,2, tight_layout = True, figsize = (6, 2.5))
+#     ax0.plot(X[0+i*200:200+i*200,1], y[0+i*200:200+i*200])
+#     ax0.set_title("Z = " + str(round(X[i*200,0], 3)))
+#     ax0.set_ylabel('y unscaled')
+#     ax0.set_xlabel('X unscaled')
+#     ax1.plot(X_scaled_og[0+i*200:200+i*200,1], y_scaled[0+i*200:200+i*200])
+#     ax1.set_ylabel('y scaled')
+#     ax1.set_xlabel('x scaled')
