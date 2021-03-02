@@ -78,12 +78,23 @@ def MAE(y_true, y_pred):
     return (1/len(y_pred)) * (sum(abs(y_true - y_pred)))
 
 
+def phy_loss_1_mean(params):
+	# useful for cross-checking training
+    zimpdiff, lam, thetaimpdiff, lam2 = params
+    def loss(y_true,y_pred):
+        return lam * K.mean(K.relu(zimpdiff))
+    return loss
 
+def phy_loss_2_mean(params):
+	# useful for cross-checking training
+    zimpdiff, lam, thetaimpdiff, lam2 = params
+    def loss(y_true,y_pred):
+        return lam2 * K.mean(K.relu(thetaimpdiff))
+    return loss
 
 #function to calculate the combined loss = sum of rmse and phy based loss
 def combined_loss(params):
     zimpdiff, lam, thetaimpdiff, lam2 = params
-    #zimpdiff, lam, thetaimpdiff, lam2 = params
     def loss(y_true,y_pred):
             return mean_squared_error(y_true, y_pred) + lam * K.mean(K.relu(zimpdiff)) + lam2 * K.mean(K.relu(thetaimpdiff))
     return loss
@@ -259,7 +270,8 @@ def NN_train_test(epochs, batch, nodes, opt_str,
     #This does have data leakage but OK as need to know for MLC.
     X_scaled_og = MinMaxScaler(feature_range=(0,1)).fit_transform(X_og)
     totloss = load_loss(X_scaled_og, model, lamda, lamda2)
-    
+    phyloss1 = 
+    phyloss2 = 
     if lamda1 == None and lamda2 == None:
         model.compile(loss='mean_squared_error',
                       optimizer=opt_str)
@@ -347,7 +359,7 @@ def NN_train_test(epochs, batch, nodes, opt_str,
 
 if __name__ == '__main__':
     def dataset_transform_prepostscaler():	
-        X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(0.00001)
+        X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(test_frac = 0.00001)
         X = X_og
         gX, gY = X[:,0].reshape(18,150), X[:,1].reshape(18,150)
         z = y_og.reshape(18,150)
@@ -630,7 +642,6 @@ if __name__ == '__main__':
         svrModels, gbrModels, bb_scores = [], [], []
         NN_hists, PGNN_hists = [],[]
         NN_scores, PGNN_scores = [],[]
-        NN_tf, PGNN_tf = [],[]
         
         for tf in tfs: 
             try:    
@@ -682,7 +693,7 @@ if __name__ == '__main__':
                 NN_scores.append(test_scores)
                 
             except:
-                NN_tf.append(tf)  
+                pass
                 
             try:
                 #PGNN12
@@ -692,7 +703,7 @@ if __name__ == '__main__':
                 PGNN_scores.append(test_scores)
                 
             except:
-                PGNN_tf.append(tf)                 
+                pass                 
                 
 
         
@@ -701,8 +712,7 @@ if __name__ == '__main__':
                    'PGNN_hists':PGNN_hists, 'PGNN_scores':PGNN_scores,
                    'tfs':tfs,
                    'svrModels': svrModels, 'gbrModels':gbrModels,
-                   'bb_scores':test_score_df,
-                   'NN_tf':NN_tf, 'PGNN_tf':PGNN_tf}
+                   'bb_scores':test_score_df}
         save_obj(to_save, 'remove'+ file_loc_string + '_data')
     
         
@@ -752,14 +762,14 @@ if __name__ == '__main__':
         ax.set_ylabel('Test MSE', fontsize='x-small')
         ax.set_xlabel('Holdout data fraction', fontsize='x-small')
         ax.set_xlim(0,1)
-        ax.set_ylim(rmseLim)
+        #ax.set_ylim(rmseLim)
         ax.minorticks_on()
    
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='lower right', prop={'size':5}) 
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+".pdf")
 
-    # remove_x_graph('y_smallest', 'remove_smallest', (10**-4, 6*10**0)) 
+    # remove_x_graph('y_smallest', 'remove_smallest', (10**-4, 1*10**1)) 
     # remove_x_graph('z_largest', 'r_z_largest', (10**-4, 6*10**0))
     # remove_x_graph('theta_largest', 'r_theta_largest', (10**-4, 6*10**0))
     
@@ -771,7 +781,7 @@ if __name__ == '__main__':
     # remove_x_graph('z_mean', 'r_z_mean', (10**-4, 6*10**0))
     # remove_x_graph('theta_mean', 'r_theta_mean', (10**-4, 6*10**0))
     
-    # remove_x_graph('random', 'test_frac', (10**-4, 6*10**0))
+    # remove_x_graph('random', 'test_frac', (10**-4, 2*10**0))
 
 
     def remove_x_20_80graphs(file_loc_string, data_kw, axlims):
