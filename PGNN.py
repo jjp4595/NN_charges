@@ -28,6 +28,7 @@ from matplotlib import colors
 from matplotlib.lines import Line2D
 import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
+from scipy import stats
 
 import multiprocessing
 
@@ -65,7 +66,6 @@ params = {'font.family':'serif',
 plt.rcParams.update(params)
 
 
-
 def JP_lowZ(Z,theta):#scaled impulse
     return (0.383*(Z**-1.858)) * np.exp((-theta**2)/1829)
 def JP_highZ(Z,theta):#scaled impulse
@@ -78,26 +78,21 @@ def MAE(y_true, y_pred):
     return (1/len(y_pred)) * (sum(abs(y_true - y_pred)))
 
 
-def phy_loss_1_mean(params):
-	# useful for cross-checking training
+def phy_loss(params):
     zimpdiff, lam, thetaimpdiff, lam2 = params
     def loss(y_true,y_pred):
-        return lam * K.mean(K.relu(zimpdiff))
+        #return  lam * K.square(K.mean(K.relu(zimpdiff))) + lam2 * K.square(K.mean(K.relu(thetaimpdiff)))
+        return  K.mean(K.relu(zimpdiff)) + K.mean(K.relu(thetaimpdiff))
+        #return (sum(K.get_value(K.relu(zimpdiff))!=0)[0] + sum(K.get_value(K.relu(thetaimpdiff))!=0)[0] ) / (len(K.get_value(zimpdiff)) + len(K.get_value(thetaimpdiff)) )
+            
     return loss
 
-def phy_loss_2_mean(params):
-	# useful for cross-checking training
-    zimpdiff, lam, thetaimpdiff, lam2 = params
-    def loss(y_true,y_pred):
-        return lam2 * K.mean(K.relu(thetaimpdiff))
-    return loss
-
-#function to calculate the combined loss = sum of rmse and phy based loss
 def combined_loss(params):
     zimpdiff, lam, thetaimpdiff, lam2 = params
     def loss(y_true,y_pred):
             return mean_squared_error(y_true, y_pred) + lam * K.mean(K.relu(zimpdiff)) + lam2 * K.mean(K.relu(thetaimpdiff))
     return loss
+
 
 
 def load_data(test_frac = None, 
@@ -191,34 +186,6 @@ def load_data(test_frac = None,
     y_unseen, y_train = y_unseen.reshape(-1,1), y_train.reshape(-1,1)
     return X_train, X_unseen, y_train, y_unseen, X_og, y_og
 
-def load_loss(X_scaled_og, model, lamda, lamda2):
-    # Defining data for physics-based regularization, Z Condition
-    zin1 = K.constant(value=X_scaled_og[0:-150,:]) 
-    zin2 = K.constant(value=X_scaled_og[150::,:]) 
-    lam = K.constant(value=lamda) 
-    zout1 = model(zin1) 
-    zout2 = model(zin2) 
-    zimpdiff = zout2 - zout1   
-    
-    # Defining data for physics-based regularization, theta Condition    
-    tX =  X_scaled_og[np.argsort(X_scaled_og[:,1])] 
-    tX = tX.reshape(-1,18,2) 
-    ind = np.argsort(tX[:,:,0]) 
-    tX = tX.reshape(-1,2)
-    ind = ind.reshape(-1)
-    ind += np.repeat(np.arange(0,150,1)*18,18)
-    tX = tX[ind,:]
-    thetain1 = K.constant(value=tX[0:-18,:])
-    thetain2 = K.constant(value=tX[18::,:]) 
-    lam2 = K.constant(value=lamda2)
-    thetaout1 = model(thetain1)
-    thetaout2 = model(thetain2)
-    thetaimpdiff = thetaout2 - thetaout1     
-
-    totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2])
-    
-    return totloss
-
 
 
 def NN_train_test(epochs, batch, nodes, opt_str, 
@@ -269,31 +236,43 @@ def NN_train_test(epochs, batch, nodes, opt_str,
     
     #This does have data leakage but OK as need to know for MLC.
     X_scaled_og = MinMaxScaler(feature_range=(0,1)).fit_transform(X_og)
-    totloss = load_loss(X_scaled_og, model, lamda, lamda2)
-    phyloss1 = 
-    phyloss2 = 
-    if lamda1 == None and lamda2 == None:
-        model.compile(loss='mean_squared_error',
-                      optimizer=opt_str)
-    else:
-        model.compile(loss=totloss,
-                      optimizer=opt_str,
-                      metrics = ['mean_squared_error'])            
+        
+    #physics-based regularization, Z Condition
+    zin1 = K.constant(value=X_scaled_og[0:-150,:]) 
+    zin2 = K.constant(value=X_scaled_og[150::,:]) 
+    lam = K.constant(value=lamda) 
+    zout1 = model(zin1) 
+    zout2 = model(zin2) 
+    zimpdiff = (zout2 - zout1)   #correct one
+    #zimpdiff = zout1 - zout2    #test to see if metric works
     
-    if learn_rate != None:
-        K.set_value(model.optimizer.learning_rate,learn_rate)
-    else:
-        pass
+    # Defining data for physics-based regularization, theta Condition    
+    tX =  X_scaled_og[np.argsort(X_scaled_og[:,1])] 
+    tX = tX.reshape(-1,18,2) 
+    ind = np.argsort(tX[:,:,0]) 
+    tX = tX.reshape(-1,2)
+    ind = ind.reshape(-1)
+    ind += np.repeat(np.arange(0,150,1)*18,18)
+    tX = tX[ind,:]
+    thetain1 = K.constant(value=tX[0:-18,:])
+    thetain2 = K.constant(value=tX[18::,:]) 
+    lam2 = K.constant(value=lamda2)
+    thetaout1 = model(thetain1)
+    thetaout2 = model(thetain2)
+    thetaimpdiff = (thetaout2 - thetaout1) #correct one
+    #thetaimpdiff = (thetaout1 - thetaout2)  #test to see if metric works
+    totloss = combined_loss([zimpdiff, lam, thetaimpdiff, lam2]) 
+    phyloss = phy_loss([zimpdiff, lam, thetaimpdiff, lam2]) #shows as loss_1, val_loss_1
 
-
+    model.compile(loss=totloss,
+                  optimizer=opt_str,
+                  metrics = [phyloss])            
+    
+    early_stopping = EarlyStopping(monitor='val_mean_squared_error', patience=patience_val, verbose=1)
+    
     kf = KFold(n_splits=5, shuffle = True)
     
     hist_df, datasets, test_scores =[], [], []
-    
-    if lamda1 == None and lamda2 == None:
-        early_stopping = EarlyStopping(monitor='val_loss', patience=patience_val, verbose=1)
-    else:
-        early_stopping = EarlyStopping(monitor='val_mean_squared_error', patience=patience_val, verbose=1)
     
     for train_index, val_index in kf.split(X_train, y=y_train):
         
@@ -358,6 +337,172 @@ def NN_train_test(epochs, batch, nodes, opt_str,
 
 
 if __name__ == '__main__':
+
+    def MLCchecker(file_loc_string, data_kw):
+        tf = 0.25
+        num_repeats = 25
+        epochs = 100
+        #grid search svr and opt params for black box model
+        X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(**{data_kw: tf})
+        parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+        svr_rbf = SVR(kernel='rbf')
+        clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+        opt = clf.fit(X_train, y_train.reshape(len(y_train)))
+        
+        #Prepare data structs
+        svrModels, gbrModels, bb_scores = [], [], []
+        
+        try:    
+            #Blackbox
+            X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(**{data_kw: tf}) 
+            X_scaled_og = MinMaxScaler(feature_range=(0,1)).fit_transform(X_og)
+            tX =  X_scaled_og[np.argsort(X_scaled_og[:,1])] 
+            tX = tX.reshape(-1,18,2) 
+            ind = np.argsort(tX[:,:,0]) 
+            tX = tX.reshape(-1,2)
+            ind = ind.reshape(-1)
+            ind += np.repeat(np.arange(0,150,1)*18,18)
+            tX = tX[ind,:]
+            thetain1 = tX[0:-18,:]
+            thetain2 = tX[18::,:] 
+            
+            #Scaling X
+            scaler = MinMaxScaler(feature_range=(0,1))
+            scaler_x = scaler.fit(X_train)
+            X_train_scaled = scaler_x.transform(X_train)
+            X_test_scaled = scaler_x.transform(X_unseen)
+            #scaling y
+            scaler2 = PowerTransformer()
+            scaler_y = scaler2.fit(y_train)
+            y_train_scaled = scaler_y.transform(y_train)
+            y_test_scaled = scaler_y.transform(y_unseen)
+            cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+            
+            #SVR
+            svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+            svr_n_scores = cross_val_score(svr_rbf, X_train_scaled, y_train_scaled, scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+            svrModel = svr_rbf.fit(X_train_scaled, y_train_scaled.reshape(len(y_train_scaled),))
+            svrModels.append(svrModel)      
+            svr_test_pred = svrModel.predict(X_test_scaled).reshape(len(X_test_scaled),1)
+            
+            svr_pred_z1 = svrModel.predict(X_scaled_og[0:-150,:]).reshape(len(X_scaled_og[0:-150,:]),1)
+            svr_pred_z2 = svrModel.predict(X_scaled_og[150::,:]).reshape(len(X_scaled_og[150::,:]),1)
+            svr_pred_z = np.count_nonzero(np.maximum(svr_pred_z2 - svr_pred_z1, 0))
+            
+            svr_pred_t1 = svrModel.predict(thetain1).reshape(len(thetain1),1)
+            svr_pred_t2 = svrModel.predict(thetain2).reshape(len(thetain2),1)
+            svr_pred_t = np.count_nonzero(np.maximum(svr_pred_t2 - svr_pred_t1, 0))
+            
+            svr_MSE = MSE(y_test_scaled, svr_test_pred)[0]
+            svr_MAE = MAE(y_test_scaled, svr_test_pred)[0]          
+            svr_R2 = r2_score(y_test_scaled, svr_test_pred)
+            svr_phys = (svr_pred_z + svr_pred_t) / (len(svr_pred_z1) + len(svr_pred_z2))
+            
+            #GBR
+            reg = GradientBoostingRegressor(n_estimators = 2000)
+            reg_n_scores = cross_val_score(reg, X_train_scaled, y_train_scaled, scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+            gbrModel = reg.fit(X_train_scaled, y_train_scaled.reshape(len(y_train_scaled),))
+            gbrModels.append(gbrModel)
+            gbr_test_pred = gbrModel.predict(X_test_scaled).reshape(len(X_test_scaled),1)
+            gbr_MSE = MSE(y_test_scaled, gbr_test_pred)[0]
+            gbr_MAE = MAE(y_test_scaled, gbr_test_pred)[0]          
+            gbr_R2 = r2_score(y_test_scaled, gbr_test_pred)
+            
+            gbr_pred_z1 = gbrModel.predict(X_scaled_og[0:-150,:]).reshape(len(X_scaled_og[0:-150,:]),1)
+            gbr_pred_z2 = gbrModel.predict(X_scaled_og[150::,:]).reshape(len(X_scaled_og[150::,:]),1)
+            gbr_pred_z = np.count_nonzero(np.maximum(svr_pred_z2 - svr_pred_z1, 0))
+            
+            gbr_pred_t1 = gbrModel.predict(thetain1).reshape(len(thetain1),1)
+            gbr_pred_t2 = gbrModel.predict(thetain2).reshape(len(thetain2),1)
+            gbr_pred_t = np.count_nonzero(np.maximum(gbr_pred_t2 - gbr_pred_t1, 0))
+            gbr_phys = (gbr_pred_z + gbr_pred_t) / (len(gbr_pred_z1) + len(gbr_pred_z2))
+            
+            
+            bb_score = {'svr_MSE':svr_MSE, 'svr_MAE':svr_MAE, 'svr_R2':svr_R2, 'svr_phys':svr_phys,
+                     'gbr_MSE':gbr_MSE, 'gbr_MAE':gbr_MAE, 'gbr_R2':gbr_R2, 'gbr_phys':gbr_phys}
+            
+        except:
+            pass  
+        
+        PGNN_score, PGNN_phy = [], []
+        NN_score, NN_phy = [], []
+        for i in range(num_repeats):
+            try:
+                #NN
+                hists, model, data, test_scores = NN_train_test(epochs, 32, 4, 'Adadelta', lamda1 = 0, lamda2 = 0, **{data_kw: tf})
+                NN_score.append(test_scores)
+                NN_phy.append(sum([len(hists[i]['loss_1'].to_numpy().nonzero()[0]) for i in range(len(hists))]) / sum([len(hists[i]['loss_1']) for i in range(len(hists))]))          
+            except:
+                pass
+            try: 
+                #PGNN
+                hists, model, data, test_scores = NN_train_test(epochs, 32, 4, 'Adadelta', lamda1 = 10000, lamda2 = 10000, **{data_kw: tf})
+                PGNN_score.append(test_scores)
+                PGNN_phy.append(sum([len(hists[i]['loss_1'].to_numpy().nonzero()[0]) for i in range(len(hists))]) / sum([len(hists[i]['loss_1']) for i in range(len(hists))])) 
+            except:
+                pass    
+            
+        NN_score = pd.concat(NN_score)
+        PGNN_score = pd.concat(PGNN_score)
+        stat = stats.ks_2samp(np.asarray(NN_phy), np.asarray(PGNN_phy))
+        stat_prem = stats.ks_2samp(NN_score.pow(0.5)['test_MSE'], PGNN_score.pow(0.5)['test_MSE'])
+        
+
+        
+        to_save = {'NN_score':NN_score,
+                   'PGNN_score':PGNN_score,
+                   'NN_phy':NN_phy,
+                   'PGNN_phy':PGNN_phy,
+                   'statPhys':stat,
+                   'statPrem':stat_prem,
+                   'bb_score':bb_score}
+        
+        save_obj(to_save, '/latest/remove'+ file_loc_string + '_data')
+        
+    #To run stress test ------------------------------------------------------
+    # MLCchecker('_z_mean', 'r_z_mean')
+    # MLCchecker('_z_smallest', 'r_z_smallest')
+    # MLCchecker('_z_largest', 'r_z_largest')
+    # MLCchecker('_theta_mean', 'r_theta_mean')
+    # MLCchecker('_theta_smallest', 'r_theta_smallest')
+    # MLCchecker('_theta_largest', 'r_theta_largest')
+        
+    def MLCcheckerGraph(file_loc_string):
+        all_data = load_obj('latest/remove'+file_loc_string+'_data')
+        
+        fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+        ax.scatter(np.asarray(all_data['PGNN_phy']).mean(), all_data['PGNN_score'].pow(0.5).mean()['test_MSE'], c = 'red', marker="s", edgecolor = 'k', s=10, zorder=20, label = 'PGNN')
+        ax.errorbar(np.asarray(all_data['PGNN_phy']).mean(), all_data['PGNN_score'].pow(0.5).mean()['test_MSE'], 
+                    yerr = all_data['PGNN_score'].pow(0.5).std()['test_MSE'], xerr = np.asarray(all_data['PGNN_phy']).std(),
+                    fmt='none', capsize = 3, capthick = 0.5, c='red', zorder=10)        
+        ax.scatter(np.asarray(all_data['NN_phy']).mean(), all_data['NN_score'].pow(0.5).mean()['test_MSE'], c = 'blue', marker="s", edgecolor = 'k', s=10, zorder=20, label = 'NN')
+        ax.errorbar(np.asarray(all_data['NN_phy']).mean(), all_data['NN_score'].pow(0.5).mean()['test_MSE'], 
+                    yerr = all_data['NN_score'].pow(0.5).std()['test_MSE'], xerr = np.asarray(all_data['NN_phy']).std(),
+                    fmt='none', capsize = 3, capthick = 0.5, c='blue', zorder=10)        
+        ax.scatter(all_data['bb_score']['svr_phys'], all_data['bb_score']['svr_MSE']**0.5, c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+        ax.scatter(all_data['bb_score']['gbr_phys'], all_data['bb_score']['gbr_MSE']**0.5, c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)        
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc='upper right', prop={'size':5}) 
+        
+        ax.set_xlabel('Physical inconsistency')
+        ax.set_ylabel('Test RMSE')
+        ax.set_yscale('log')
+        #ax.set_xscale('log')
+        ax.set_xlim(0,1)
+        
+        text_ax = 'Physical\ninconsistency:\n'+ 'K-S = '+str(round(all_data['statPhys'][0],2)) + '\n P = ' + str(round(all_data['statPhys'][1],2)) 
+        text_ax2 = 'Performance\npremium:\n'+ 'K-S = '+str(round(all_data['statPrem'][0],2)) + '\n P = ' + str(round(all_data['statPrem'][1],2)) 
+        ax.text(0.55, 0.40, text_ax, fontsize = 'x-small', transform=ax.transAxes)
+        ax.text(0.55, 0.15, text_ax2, fontsize = 'x-small', transform=ax.transAxes)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\obj\latest\remove"+file_loc_string+".pdf")
+
+    # # 
+    MLCcheckerGraph('_z_mean')
+    MLCcheckerGraph('_z_smallest')
+    MLCcheckerGraph('_z_largest')
+    MLCcheckerGraph('_theta_mean')
+    MLCcheckerGraph('_theta_smallest')
+    MLCcheckerGraph('_theta_largest')            
     def dataset_transform_prepostscaler():	
         X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(test_frac = 0.00001)
         X = X_og
@@ -402,6 +547,7 @@ if __name__ == '__main__':
         titletext = ['Peak specific impulse '+r'$(MPa.ms$)']        
         ax1.set_proj_type('ortho')
         plt.tight_layout()
+        
         
     def datatransformgraphs():
         X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(0.00001)          
@@ -544,7 +690,7 @@ if __name__ == '__main__':
         """
 
         #Grid search batch size and num epochs
-        lamda = np.logspace(-2,2,5)
+        lamda = np.logspace(0,5,6)
         if load != 0:
             score, histories, sim_detail = [],[], []
             for i in lamda:
@@ -832,7 +978,8 @@ if __name__ == '__main__':
         ax.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
         ax.grid(which='minor', ls=':',  dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25) 
         fig_scatter80.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_remove_"+file_loc_string+"_80.pdf")
-        
+
+
     def finalboxplot(dh):
         extrap_strings = ['y_smallest', 'z_largest', 'theta_largest',
         				  'y_largest', 'z_smallest', 'theta_smallest']		  
