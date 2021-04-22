@@ -466,6 +466,7 @@ if __name__ == '__main__':
     # MLCchecker('_theta_mean', 'r_theta_mean')
     # MLCchecker('_theta_smallest', 'r_theta_smallest')
     # MLCchecker('_theta_largest', 'r_theta_largest')
+    # MLCchecker('_random', 'test_frac') 
         
     def MLCcheckerGraph(file_loc_string):
         all_data = load_obj('latest/remove'+file_loc_string+'_data')
@@ -479,8 +480,8 @@ if __name__ == '__main__':
         ax.errorbar(np.asarray(all_data['NN_phy']).mean(), all_data['NN_score'].pow(0.5).mean()['test_MSE'], 
                     yerr = all_data['NN_score'].pow(0.5).std()['test_MSE'], xerr = np.asarray(all_data['NN_phy']).std(),
                     fmt='none', capsize = 3, capthick = 0.5, c='blue', zorder=10)        
-        ax.scatter(all_data['bb_score']['svr_phys'], all_data['bb_score']['svr_MSE']**0.5, c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-        ax.scatter(all_data['bb_score']['gbr_phys'], all_data['bb_score']['gbr_MSE']**0.5, c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)        
+        #ax.scatter(all_data['bb_score']['svr_phys'], all_data['bb_score']['svr_MSE']**0.5, c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+        #ax.scatter(all_data['bb_score']['gbr_phys'], all_data['bb_score']['gbr_MSE']**0.5, c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)        
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':5}) 
         
@@ -490,19 +491,20 @@ if __name__ == '__main__':
         #ax.set_xscale('log')
         ax.set_xlim(0,1)
         
-        text_ax = 'Physical\ninconsistency:\n'+ 'K-S = '+str(round(all_data['statPhys'][0],2)) + '\n P = ' + str(round(all_data['statPhys'][1],2)) 
-        text_ax2 = 'Performance\npremium:\n'+ 'K-S = '+str(round(all_data['statPrem'][0],2)) + '\n P = ' + str(round(all_data['statPrem'][1],2)) 
-        ax.text(0.55, 0.40, text_ax, fontsize = 'x-small', transform=ax.transAxes)
-        ax.text(0.55, 0.15, text_ax2, fontsize = 'x-small', transform=ax.transAxes)
+        # text_ax = 'Physical\ninconsistency:\n'+ 'K-S = '+str(round(all_data['statPhys'][0],3)) + '\n P = ' + str(round(all_data['statPhys'][1],3)) 
+        # text_ax2 = 'Performance\npremium:\n'+ 'K-S = '+str(round(all_data['statPrem'][0],3)) + '\n P = ' + str(round(all_data['statPrem'][1],3)) 
+        # ax.text(0.55, 0.40, text_ax, fontsize = 'x-small', transform=ax.transAxes)
+        # ax.text(0.55, 0.15, text_ax2, fontsize = 'x-small', transform=ax.transAxes)
         fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\obj\latest\remove"+file_loc_string+".pdf")
 
-    # # 
-    MLCcheckerGraph('_z_mean')
-    MLCcheckerGraph('_z_smallest')
-    MLCcheckerGraph('_z_largest')
-    MLCcheckerGraph('_theta_mean')
-    MLCcheckerGraph('_theta_smallest')
-    MLCcheckerGraph('_theta_largest')            
+    # 
+    # MLCcheckerGraph('_z_mean')
+    # MLCcheckerGraph('_z_smallest')
+    # MLCcheckerGraph('_z_largest')
+    # MLCcheckerGraph('_theta_mean')
+    # MLCcheckerGraph('_theta_smallest')
+    # MLCcheckerGraph('_theta_largest')     
+    # MLCcheckerGraph('_random')          
     def dataset_transform_prepostscaler():	
         X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(test_frac = 0.00001)
         X = X_og
@@ -683,6 +685,23 @@ if __name__ == '__main__':
             ax.set_ylabel(r'Mean $R^2$')
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_neurons_NN_R2.pdf")
     
+    def epoch_histories():
+        all_info = load_obj('neurons_learnRate')
+        for i in range(5):
+            fig, ax = plt.subplots(1,1, figsize = (2.5,2.5), tight_layout = True)
+            ax.plot(all_info['History'][3][i]['loss'], 'k', label = 'Train')
+            ax.plot(all_info['History'][3][i]['val_loss'], 'k--', label = 'Validation')
+            ax.set_xlabel('Epochs')
+            ax.set_ylabel('Loss (MSE)')
+            ax.set_yscale('log')
+            if i == 0:
+                
+                handles, labels = ax.get_legend_handles_labels()
+                ax.legend(handles, labels, loc='upper right', prop={'size':6})
+            else:
+                ax.set_ylim(9*10**-4, 1*10**-2)
+            fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_neurons_NN_history_"+str(i)+".pdf")
+
 
     def gridsearch_lamda12(load=0):
         """
@@ -715,12 +734,16 @@ if __name__ == '__main__':
             test_MSE = np.asarray(test_MSE).reshape((len(lam1),len(lam2)))
             score = pd.DataFrame(data = test_MSE, index = lamda, columns = lamda)
             #columns in score are lamda 2, index is lamda 1
+            xticks = [r'$10^0$', r'$10^1$', r'$10^2$', r'$10^3$', r'$10^4$', r'$10^5$']
+            yticks = xticks
             
             fig, ax = plt.subplots(1,1, figsize = (3.5,3.3), tight_layout = True)
-            sns.heatmap(score, annot=True, vmin = 0, vmax = 10, 
+            sns.heatmap(score, annot=True, vmin = 0, vmax = 6, 
                         annot_kws = {'fontsize':'x-small'},
                         cbar_kws = {'label':'RMSE'},
-                        ax = ax)
+                        ax = ax,
+                        xticklabels = xticks,
+                        yticklabels = yticks)
             ax.set_ylabel('$\lambda_{Phy,1}$')
             ax.set_xlabel('$\lambda_{Phy,2}$')
             fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Papers\PaperPGNN\__Paper\Fig_lamda_PGNN_12.pdf")
@@ -730,18 +753,40 @@ if __name__ == '__main__':
             
     def stress_test_distribution_x(file_loc_string, data_kw):
         
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, test_frac = 0.5)
-        nbins = np.histogram_bin_edges(y_scaled, bins = 40)
-        nbins_z = np.histogram_bin_edges(X_scaled[:,0], bins = 18)
-        nbins_theta = np.histogram_bin_edges(X_scaled[:,1], bins = 200)
+        X_train, X_unseen, y_train, y_unseen, X_og, y_og =load_data(test_frac = 0.25)
         
+        scaler = MinMaxScaler(feature_range=(0,1))
+        scaler_x = scaler.fit(X_og)
+        X_scaled_t = scaler_x.transform(X_train)
+        X_scaled_og = scaler_x.transform(X_og)
+        
+        scaler2 = PowerTransformer()
+        scaler_y = scaler2.fit(y_og)
+        y_scaled_t = scaler_y.transform(y_train)
+        y_scaled_og = scaler_y.transform(y_og)
+        nbins = np.histogram_bin_edges(y_scaled_og, bins = 40)
+        nbins_z = np.histogram_bin_edges(X_scaled_og[:,0], bins = 18)
+        nbins_theta = np.histogram_bin_edges(X_scaled_og[:,1], bins = 200)
+        
+       
         fs = (4.15, 2.35)
         histylim = 200
         
         fig, [ax, ax1] = plt.subplots(1,2, figsize = fs, tight_layout = True)
-        X_scaled, y_scaled, X_train, X_unseen, y_train, y_unseen, scaler_x, scaler2, scaler_y, X_scaled_og, y_og =load_data(1, **{data_kw: 0.5})
-        ax.hist(y_scaled, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
-        ax.hist(y_train, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
+        X_train, X_unseen, y_train, y_unseen, X_og, y_og =load_data(**{data_kw: 0.25})
+
+        scaler = MinMaxScaler(feature_range=(0,1))
+        scaler_x = scaler.fit(X_og)
+        X_scaled_t = scaler_x.transform(X_train)
+        X_scaled_og = scaler_x.transform(X_og)
+
+        scaler2 = PowerTransformer()
+        scaler_y = scaler2.fit(y_og)
+        y_scaled_t = scaler_y.transform(y_train)
+        y_scaled_og = scaler_y.transform(y_og)
+        
+        ax.hist(y_scaled_og, bins = nbins, alpha = 0.5, histtype = 'stepfilled', density = False, label = 'Original')
+        ax.hist(y_scaled_t, bins = nbins, histtype = 'stepfilled', density = False, color = 'black', label = 'Train')
         ax.set_ylabel("Count", fontsize='x-small')
         ax.set_xlabel(r'$Y$', fontsize='x-small')
         ax.minorticks_on()
@@ -751,7 +796,7 @@ if __name__ == '__main__':
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':6}) 
         
-        hist = ax1.hist2d(X_train[:,0], X_train[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.binary)
+        hist = ax1.hist2d(X_scaled_t[:,0], X_scaled_t[:,1], bins = [nbins_z, nbins_theta], cmap = plt.cm.binary)
         #cbar = plt.colorbar(hist[-1], ax = ax1)
         #cbar.ax.set_ylabel("Count")
         #cbar.set_ticks(np.linspace(0,1,3))
