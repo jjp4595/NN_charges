@@ -31,6 +31,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import stats
 
 import multiprocessing
+import decimal
+import math 
 
 params = {'font.family':'serif',
         'axes.labelsize':'small',
@@ -70,6 +72,33 @@ def JP_lowZ(Z,theta):#scaled impulse
     return (0.383*(Z**-1.858)) * np.exp((-theta**2)/1829)
 def JP_highZ(Z,theta):#scaled impulse
     return (0.557*(Z**-1.663)) * np.exp((-theta**2)/2007) 
+
+def roundup(x, base=10):
+    return int(base * math.ceil(x/base)) 
+def rounddwn(x, base=10):
+    return int(base * math.floor(x/base))
+
+#For rounding with decimals...
+def round_up(x, place=0):
+    context = decimal.getcontext()
+    # get the original setting so we can put it back when we're done
+    original_rounding = context.rounding
+    # change context to act like ceil()
+    context.rounding = decimal.ROUND_CEILING
+
+    rounded = round(decimal.Decimal(str(x)), place)
+    context.rounding = original_rounding
+    return float(rounded)
+def round_dwn(x, place=0):
+    context = decimal.getcontext()
+    # get the original setting so we can put it back when we're done
+    original_rounding = context.rounding
+    # change context to act like ceil()
+    context.rounding = decimal.ROUND_FLOOR
+
+    rounded = round(decimal.Decimal(str(x)), place)
+    context.rounding = original_rounding
+    return float(rounded)
 
 
 def MSE(y_true, y_pred):
@@ -480,8 +509,8 @@ if __name__ == '__main__':
         ax.errorbar(np.asarray(all_data['NN_phy']).mean(), all_data['NN_score'].pow(0.5).mean()['test_MSE'], 
                     yerr = all_data['NN_score'].pow(0.5).std()['test_MSE'], xerr = np.asarray(all_data['NN_phy']).std(),
                     fmt='none', capsize = 3, capthick = 0.5, c='blue', zorder=10)        
-        #ax.scatter(all_data['bb_score']['svr_phys'], all_data['bb_score']['svr_MSE']**0.5, c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
-        #ax.scatter(all_data['bb_score']['gbr_phys'], all_data['bb_score']['gbr_MSE']**0.5, c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)        
+        ax.scatter(all_data['bb_score']['svr_phys'], all_data['bb_score']['svr_MSE']**0.5, c = 'grey', marker="s", edgecolor = 'k', s=10, label = 'SVR', zorder=20)
+        ax.scatter(all_data['bb_score']['gbr_phys'], all_data['bb_score']['gbr_MSE']**0.5, c = 'yellow', marker="D", edgecolor = 'k', s=10, label = 'GBR', zorder=20)        
         handles, labels = ax.get_legend_handles_labels()
         ax.legend(handles, labels, loc='upper right', prop={'size':5}) 
         
@@ -504,7 +533,23 @@ if __name__ == '__main__':
     # MLCcheckerGraph('_theta_mean')
     # MLCcheckerGraph('_theta_smallest')
     # MLCcheckerGraph('_theta_largest')     
-    # MLCcheckerGraph('_random')          
+    # MLCcheckerGraph('_random')   
+
+    def tablemaker():
+        fileid = ['_z_mean', '_z_smallest', '_z_largest',
+         '_theta_mean', '_theta_smallest', '_theta_largest',
+         '_random']
+        data = {x: load_obj('latest/remove'+x+'_data') for x in 
+                fileid}
+        df = pd.DataFrame(columns = ['test','pgnn', 'nn', 'svr', 'gbr'])
+        for fid in fileid:
+            pgnn = data[fid]['PGNN_score'].pow(0.5).mean()['test_MSE']
+            nn = data[fid]['NN_score'].pow(0.5).mean()['test_MSE']
+            svr = data[fid]['bb_score']['svr_MSE']**0.5
+            gbr = data[fid]['bb_score']['gbr_MSE']**0.5
+            newrow = {'test':fid, 'pgnn':pgnn, 'nn':nn, 'svr':svr, 'gbr':gbr}
+            df = df.append(newrow, ignore_index = True)
+       
     def dataset_transform_prepostscaler():	
         X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(test_frac = 0.00001)
         X = X_og
@@ -550,6 +595,277 @@ if __name__ == '__main__':
         ax1.set_proj_type('ortho')
         plt.tight_layout()
         
+        
+    def modelValidation():
+        epochs = 1000
+        #grid search svr and opt params for black box model
+        X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(**{'test_frac': 0.05})
+       
+        #Scaling X
+        scaler = MinMaxScaler(feature_range=(0,1))
+        scaler_x = scaler.fit(X_og)
+        X_train_scaled = scaler_x.transform(X_og)
+        
+        #scaling y
+        scaler2 = PowerTransformer()
+        scaler_y = scaler2.fit(y_og)
+        y_train_scaled = scaler_y.transform(y_og)
+        cv = RepeatedKFold(n_splits = 4, n_repeats = 1)
+        
+        #Training models------------------------------------------------------
+        parameterz = {'epsilon':np.logspace(-3,2, 8), 'C':np.logspace(-3,2, 8)}
+        svr_rbf = SVR(kernel='rbf')
+        clf = GridSearchCV(svr_rbf, parameterz, n_jobs = -1)
+        opt = clf.fit(X_train, y_train.reshape(len(y_train)))
+        
+        #SVR
+        svr_rbf = SVR(kernel='rbf', C = opt.best_params_['C'], epsilon = opt.best_params_['epsilon'])
+        svr_n_scores = cross_val_score(svr_rbf, X_train_scaled, y_train_scaled, scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+        svrModel = svr_rbf.fit(X_train_scaled, y_train_scaled.reshape(len(y_train_scaled),))
+             
+        #GBR
+        reg = GradientBoostingRegressor(n_estimators = 2000)
+        reg_n_scores = cross_val_score(reg, X_train_scaled, y_train_scaled, scoring = 'neg_mean_squared_error', cv = cv, n_jobs = -1)
+        gbrModel = reg.fit(X_train_scaled, y_train_scaled.reshape(len(y_train_scaled),))
+        
+        #PGNN
+        hists, pgnn_model, data, test_scores = NN_train_test(epochs, 32, 4, 'Adadelta', lamda1 = 10000, lamda2 = 10000, **{'test_frac': 0.05})
+        
+        #NN
+        hists, nn_model, data, test_scores = NN_train_test(epochs, 32, 4, 'Adadelta', lamda1 = 0, lamda2 = 0, **{'test_frac': 0.05})
+                
+        to_save = {'svrModel':svrModel, 'gbrModel':gbrModel,
+                   'pgnn_model':pgnn_model, 'nn_model':nn_model}
+        save_obj(to_save, '/latest/modelValidation_data')
+        
+        
+        #model predictions ---------------------------------------------------
+        svrPred = scaler_y.inverse_transform(svrModel.predict(X_train_scaled).reshape(-1,1)).reshape(18, 150)
+        gbrPred = scaler_y.inverse_transform(gbrModel.predict(X_train_scaled).reshape(-1,1)).reshape(18, 150)
+        pgnnPred = scaler_y.inverse_transform(pgnn_model.predict(X_train_scaled).reshape(-1,1)).reshape(18, 150)
+        nnPred = scaler_y.inverse_transform(nn_model.predict(X_train_scaled).reshape(-1,1)).reshape(18, 150)
+        
+        z = X_og[:,0].reshape(18, 150)
+        theta = X_og[:,1].reshape(18,150)
+        
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, y_og.reshape(18,150), levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_yOG_surf.pdf")
+        
+        #gauss 
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, JP_highZ(X_og[:,0], X_og[:,1]).reshape(18,150), levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_gauss_surf.pdf")   
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        diff = y_og.reshape(18,150) - JP_highZ(X_og[:,0], X_og[:,1]).reshape(18,150)
+        CS = ax.contourf(theta, z, diff, levels = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' , ticks = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),5))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_gauss_surfRes.pdf")
+        
+        #svr
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, svrPred, levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_svr_surf.pdf")      
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        diff = y_og.reshape(18,150) - svrPred
+        CS = ax.contourf(theta, z, diff, levels = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' , ticks = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),5))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_svr_surfRes.pdf")
+        
+        #gbr       
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, gbrPred, levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_gbr_surf.pdf")       
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        diff = y_og.reshape(18,150) - gbrPred
+        CS = ax.contourf(theta, z, diff, levels = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' , ticks = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),5))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_gbr_surfRes.pdf")
+        
+        #pgnn
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, pgnnPred, levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_pgnn_surf.pdf")
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        diff = y_og.reshape(18,150) - pgnnPred
+        CS = ax.contourf(theta, z, diff, levels = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' , ticks = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),5))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_pgnn_surfRes.pdf")
+        
+        #nn
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        CS = ax.contourf(theta, z, nnPred, levels = np.linspace(0,25,50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' ,ticks = np.linspace(0,25,6))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_nn_surf.pdf")
+        fig, ax = plt.subplots(1,1)
+        fig.set_size_inches(3, 2.5)
+        diff = y_og.reshape(18,150) - nnPred
+        CS = ax.contourf(theta, z, diff, levels = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),50), cmap = plt.cm.magma_r)
+        cbar = fig.colorbar(CS, format='%.0f' , ticks = np.linspace(rounddwn(diff.min(), base = 1),roundup(diff.max(), base = 1),5))
+        cbar.ax.set_ylabel('Scaled specific impulse '+r'$(MPa.ms/kg^{1/3}$)', fontsize = 'x-small')
+        ax.set_ylabel('Scaled distance, Z ' + r'$(m/kg^{1/3}$)')
+        ax.set_xlabel('Angle of incidence (degrees)')
+        ax.set_xlim(0,60)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_nn_surfRes.pdf")
+        
+        
+        #Unseen CFD data------------------------------------------------------
+        from scipy.signal import savgol_filter
+        import preamble_functions as pre
+        charge_rad = 0.0246
+        def dataimport(folderpath, cm, TNTeq, sav=151):
+            file = pre.FileAddressList(folderpath + r"\*.txt")
+            data = pre.FileAddressList(folderpath+ r"\*gtable", 1)
+            data = np.asarray([data[i][:,7] for i in range(len(file))]).T 
+            smooth = np.asarray([savgol_filter(data[:,i], sav, 3) for i in range(len(file))]).T
+            smooth_Icr = np.asarray([smooth[:,i]/ (max(smooth[:,i])) for i in range(len(file))]).T     
+            z_center = [(pre.standoff_func(file[i]))/((cm*TNTeq)**(1/3)) for i in range(len(file))]
+            z_clear = [(pre.standoff_func(file[i]) - charge_rad)/((cm*TNTeq)**(1/3)) for i in range(len(file))]
+            z_center = np.asarray(z_center)
+            z_clear = np.asarray(z_clear)
+            so = (np.asarray(z_center) * ((cm*TNTeq)**(1/3)))    
+            so_clear = (np.asarray(z_clear) *((cm*TNTeq)**(1/3)))  
+            keys = ['imp', 'imp_smooth', 'icr', 'z', 'z_clear', 'so', 'so_clear']
+            vals = [data, smooth, smooth_Icr, z_center, z_clear, so, so_clear]
+            d = dict(zip(keys, vals))
+            return d
+        val_highZ = dataimport(os.environ['USERPROFILE'] + r"\Google Drive\Apollo Sims\Impulse Distribution Curve Modelling\Paper_1\Sphere\validation_samples\250kg\res5", 250,1, sav=151)
+        val_lowZ = dataimport(os.environ['USERPROFILE'] + r"\Google Drive\Apollo Sims\Impulse Distribution Curve Modelling\Paper_1\Sphere\validation_samples\5kg\res4", 5,1, sav=151)
+        
+        theta = np.linspace(0,80,200)
+        lowz = ( (5)**(1/3) * 
+                (val_lowZ['z'][0]**-1.858) * 0.383 *
+                np.exp(-(theta/160)**2 / (2*0.189**2)) )
+        
+        highz = ( (250)**(1/3) * 
+                (val_highZ['z'][0]**-1.663) * 0.557 *
+                np.exp(-(theta/160)**2 / (2*0.198**2)) )
+        
+        #new model predictions
+        a1 = np.repeat(0.17, 150).reshape(150,1)
+        a2 = np.linspace(0,60,150).reshape(150,1)
+        lZ = np.concatenate([a1, a2], axis =1)
+        a1 = np.repeat(0.4, 150).reshape(150,1)
+        hZ = np.concatenate([a1, a2], axis =1)
+        
+        lZt = scaler_x.transform(lZ)
+        hZt = scaler_x.transform(hZ)
+        
+        gbrPredlZ = scaler_y.inverse_transform(gbrModel.predict(lZt).reshape(-1,1)) * 5**(1/3)
+        pgnnPredlZ = scaler_y.inverse_transform(pgnn_model.predict(lZt).reshape(-1,1)) * 5**(1/3)
+        nnPredlZ = scaler_y.inverse_transform(nn_model.predict(lZt).reshape(-1,1)) * 5**(1/3)
+        gbrPredhZ = scaler_y.inverse_transform(gbrModel.predict(hZt).reshape(-1,1))  * 250**(1/3)
+        pgnnPredhZ = scaler_y.inverse_transform(pgnn_model.predict(hZt).reshape(-1,1)) * 250**(1/3)
+        nnPredhZ = scaler_y.inverse_transform(nn_model.predict(hZt).reshape(-1,1)) * 250**(1/3)
+        
+        x1 = np.tan(np.deg2rad(np.linspace(0,80,200))) * val_lowZ['so']
+        x1a = np.tan(np.deg2rad(np.linspace(0,60,150))) * val_lowZ['so']
+        fig, ax1 = plt.subplots(1,1)
+        fig.set_size_inches(2.5, 2.5) 
+        ax1.plot(x1, val_lowZ['imp_smooth']/1e3, 'k', ls = '-', lw = 1.25, label = 'CFD')
+        ax1.plot(x1, lowz, 'k--', label = 'Pannell')
+        ax1.plot(x1a, gbrPredlZ, 'grey', label = 'GBR')
+        ax1.plot(x1a, nnPredlZ, 'b', label = 'NN')
+        ax1.plot(x1a, pgnnPredlZ, 'r', label = 'PGNN')
+        handles, labels = ax1.get_legend_handles_labels()
+        ax1.legend(handles, labels, loc='upper right', prop={'size':6})
+        
+        ax1.set_xlabel('Distance from centre (m)')
+        ax1.set_ylabel('Peak specific impulse '+r'$(MPa.ms$)', fontsize = 'small')
+        ax1.set_xlim(0,0.5)
+        ax1.set_ylim(0,20)
+        ax1.minorticks_on()
+        ax1.grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
+        ax1.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        ax1.locator_params(axis = 'both',tight=True, nbins=5)
+        plt.tight_layout()
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_unseenCFDlZ.pdf")
+     
+        x2 = np.tan(np.deg2rad(np.linspace(0,80,200))) * val_highZ['so']
+        x2a = np.tan(np.deg2rad(np.linspace(0,60,150))) * val_highZ['so']
+        fig, ax2 = plt.subplots(1,1)
+        fig.set_size_inches(2.5, 2.5)    
+        ax2.plot(x2, val_highZ['imp_smooth']/1e3, 'k', ls = '-', lw = 1.0, label = 'CFD')
+        ax2.plot(x2, highz, 'k--')
+        ax2.plot(x2a, gbrPredlZ, 'grey', label = 'GBR')
+        ax2.plot(x2a, nnPredlZ, 'b',label = 'NN')
+        ax2.plot(x2a, pgnnPredlZ,'r', label = 'PGNN')
+        ax2.set_xlabel('Distance from centre (m)')
+        ax2.set_ylabel('Peak specific impulse '+r'$(MPa.ms$)', fontsize = 'small')
+        ax2.set_xlim(0,4)
+        ax2.set_ylim(0,20)
+        ax2.minorticks_on()
+        ax2.grid(which='minor', ls=':', dashes=(1,5,1,5), color = [0.1, 0.1, 0.1], alpha=0.25)
+        ax2.grid(which='major', ls = '-', color = [0.15, 0.15, 0.15], alpha=0.15)
+        plt.tight_layout()
+        ax2.locator_params(axis = 'both',tight=True, nbins=5)
+        fig.savefig(os.environ['USERPROFILE'] + r"\Dropbox\Thesis\Figures\Ch5\Fig_unseenCFDhZ.pdf")
         
     def datatransformgraphs():
         X_train, X_unseen, y_train, y_unseen, X_og, y_og = load_data(0.00001)          
